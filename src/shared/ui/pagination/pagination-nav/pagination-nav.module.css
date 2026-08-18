@@ -1,0 +1,74 @@
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+}
+
+.pageButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: #18181b;
+    color: #a1a1aa;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+/* Ховер на обычные кнопки */
+.pageButton:hover:not(:disabled) {
+    background-color: #27272a;
+    color: #f4f4f5;
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Активная страница */
+.pageButtonActive {
+    background-color: #3f3f46 !important;
+    color: #ffffff !important;
+    border-color: #52525b !important;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Заблокированная кнопка (во время фетчинга или текущая) */
+.pageButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Троеточие */
+.ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 38px;
+    color: #71717a;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* 1. Стили для заблокированных кнопок (только если они НЕ активные) */
+.pageButton:disabled:not(.pageButtonActive) {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.04);
+}
+
+/* 2. Активная страница (не тускнеет, даже если на ней стоит disabled) */
+.pageButtonActive {
+    background-color: #3f3f46 !important;
+    color: #ffffff !important;
+    border-color: #52525b !important;
+    font-weight: 600;
+    opacity: 1 !important; /* Гарантируем полную яркость */
+    cursor: default;
+}

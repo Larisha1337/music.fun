@@ -1,0 +1,51 @@
+/* 1. Сброс box-sizing для всех элементов */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+/* 2. Полное обнуление отступов (убирает 8px у body и отступы у h1-h6, p, ul) */
+* {
+    margin: 0;
+    padding: 0;
+}
+
+/* 3. Базовые стили для body */
+body {
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #060707;
+    color: #9c9c9c;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 4. Сброс точек у списков */
+ul, ol {
+    list-style: none;
+}
+
+/* 5. Наследование цвета и сброс подчеркивания у ссылок */
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 6. Картинки не вылезают за контейнер */
+img, picture, video, canvas, svg {
+    display: block;
+    max-width: 100%;
+}
+
+/* 7. Наследование шрифтов для инпутов и кнопок */
+input, button, textarea, select {
+    font: inherit;
+}
+
+/* 8. Убираем рамки и стандартный фон у кнопок */
+button {
+    border: none;
+    background: none;
+    cursor: pointer;
+}
