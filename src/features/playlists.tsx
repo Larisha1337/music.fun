@@ -19,7 +19,7 @@ export const Playlist = () => {
     };
 
     if (query.isLoading) return <IsPending/>
-    if (query.isError) return <IsError/>
+    if (query.isError) return <IsError onRetry={query.refetch} />;
 
     if (!query.data) return null;
 
