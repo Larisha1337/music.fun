@@ -4,7 +4,6 @@ import { client } from "../../../shared/api/client.ts";
 export const useLogoutMutation = () => {
     const queryClient = useQueryClient();
 
-    // 💡 Передаем <Data, Error, TVariables = void>
     return useMutation<unknown, Error, void>({
         mutationFn: async () => {
             const refreshToken = localStorage.getItem('musicfun-refresh-token');

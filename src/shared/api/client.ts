@@ -1,20 +1,54 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 
-export const client = createClient<paths>({baseUrl: "https://musicfun.it-incubator.app/api/1.0",
+const API_BASE_URL = "https://musicfun.it-incubator.app/api/1.0";
+const API_KEY = "a03aefd6-d7fb-49bc-96e8-93041c87a1a7";
+
+export const client = createClient<paths>({
+    baseUrl: API_BASE_URL,
     headers: {
-        'api-key': 'a03aefd6-d7fb-49bc-96e8-93041c87a1a7'
-    }});
+        'api-key': API_KEY
+    }
+});
 
+let refreshPromise: Promise<string | null> | null = null;
 
+const refreshTokens = async (): Promise<string | null> => {
+    const refreshToken = localStorage.getItem('musicfun-refresh-token');
+    if (!refreshToken) return null;
 
-// export const client = createClient<paths>({
-//     baseUrl: "https://musicfun.it-incubator.app/api/1.0"
-// });
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'api-key': API_KEY // 💡
+            },
+            body: JSON.stringify({ refreshToken })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem('musicfun-access-token', data.accessToken);
+            localStorage.setItem('musicfun-refresh-token', data.refreshToken);
+            return data.accessToken;
+        } else {
+            // Если рефреш протух — чистим токены
+            localStorage.removeItem('musicfun-access-token');
+            localStorage.removeItem('musicfun-refresh-token');
+            return null;
+        }
+    } catch (e) {
+        console.error('Ошибка обновления токена', e);
+        return null;
+    } finally {
+        // Сбрасываем промис после завершения
+        refreshPromise = null;
+    }
+};
 
 const authMiddleware: Middleware = {
     async onRequest({ request }) {
-        // 1. Подставляем Access Token перед каждым запросом
         const accessToken = localStorage.getItem('musicfun-access-token');
         if (accessToken) {
             request.headers.set("Authorization", `Bearer ${accessToken}`);
@@ -23,36 +57,23 @@ const authMiddleware: Middleware = {
     },
 
     async onResponse({ response, request }) {
-        // 2. Если получаем 401 (токен протух)
+        // Если получаем 401 и запрос еще не был рефрешнут
         if (response.status === 401) {
-            const refreshToken = localStorage.getItem('musicfun-refresh-token');
-            if (!refreshToken) return response;
+            // Если рефреш УЖЕ идет — ждем его. Если нет — запускаем новый.
+            if (!refreshPromise) {
+                refreshPromise = refreshTokens();
+            }
 
-            try {
-                // Запрашиваем новую пару токенов (укажи свой роут рефреша)
-                const refreshResponse = await fetch('https://musicfun.it-incubator.app/api/1.0/auth/refresh', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refreshToken })
+            const newAccessToken = await refreshPromise;
+
+            if (newAccessToken) {
+                // Создаем клонированный запрос с новым токеном
+                const newRequest = new Request(request, {
+                    headers: new Headers(request.headers)
                 });
+                newRequest.headers.set("Authorization", `Bearer ${newAccessToken}`);
 
-                if (refreshResponse.ok) {
-                    const data = await refreshResponse.json();
-
-                    // Сохраняем новые токены
-                    localStorage.setItem('musicfun-access-token', data.accessToken);
-                    localStorage.setItem('musicfun-refresh-token', data.refreshToken);
-
-                    // Повторяем изначальный запрос с новым токеном
-                    request.headers.set("Authorization", `Bearer ${data.accessToken}`);
-                    return fetch(request);
-                } else {
-                    // Если рефреш протух — разлогиниваем
-                    localStorage.removeItem('musicfun-access-token');
-                    localStorage.removeItem('musicfun-refresh-token');
-                }
-            } catch (e) {
-                console.error('Ошибка обновления токена', e);
+                return fetch(newRequest);
             }
         }
         return response;

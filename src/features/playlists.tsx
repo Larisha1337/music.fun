@@ -12,7 +12,6 @@ export const Playlist = () => {
 
     const query = usePlaylistsQuery(page, search);
 
-    // 💡 Хэндлер для ввода текста: сбрасывает страницу на 1
     const handleSearchChange = (value: string) => {
         setSearch(value);
         setPage(1);

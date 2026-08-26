@@ -14,7 +14,7 @@ export const useLoginMutation = () => {
                     code,
                     redirectUri: callbackUrl,
                     rememberMe: true,
-                    accessTokenTTL: '30m'
+                    accessTokenTTL: '10s'
                 }
             });
             if (response.error) throw response.error;
