@@ -22,7 +22,6 @@ const refreshTokens = async (): Promise<string | null> => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'api-key': API_KEY // 💡
             },
             body: JSON.stringify({ refreshToken })
         });
@@ -53,10 +52,18 @@ const authMiddleware: Middleware = {
         if (accessToken) {
             request.headers.set("Authorization", `Bearer ${accessToken}`);
         }
+
+        // @ts-ignore
+        request._retryRequest = request.clone()
+
         return request;
     },
 
     async onResponse({ response, request }) {
+        if (!response.ok && response.status !== 401) {
+            throw new Error(`${response.url}: ${response.status} ${response.statusText}`)
+        }
+
         // Если получаем 401 и запрос еще не был рефрешнут
         if (response.status === 401) {
             // Если рефреш УЖЕ идет — ждем его. Если нет — запускаем новый.
