@@ -22,6 +22,7 @@ const refreshTokens = async (): Promise<string | null> => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'api-key': API_KEY 
             },
             body: JSON.stringify({ refreshToken })
         });
@@ -29,10 +30,11 @@ const refreshTokens = async (): Promise<string | null> => {
         if (response.ok) {
             const data = await response.json();
             localStorage.setItem('musicfun-access-token', data.accessToken);
-            localStorage.setItem('musicfun-refresh-token', data.refreshToken);
+            if (data.refreshToken) {
+                localStorage.setItem('musicfun-refresh-token', data.refreshToken);
+            }
             return data.accessToken;
         } else {
-            // Если рефреш протух — чистим токены
             localStorage.removeItem('musicfun-access-token');
             localStorage.removeItem('musicfun-refresh-token');
             return null;
@@ -41,7 +43,6 @@ const refreshTokens = async (): Promise<string | null> => {
         console.error('Ошибка обновления токена', e);
         return null;
     } finally {
-        // Сбрасываем промис после завершения
         refreshPromise = null;
     }
 };
@@ -54,19 +55,14 @@ const authMiddleware: Middleware = {
         }
 
         // @ts-ignore
-        request._retryRequest = request.clone()
+        request._retryRequest = request.clone();
 
         return request;
     },
 
     async onResponse({ response, request }) {
-        if (!response.ok && response.status !== 401) {
-            throw new Error(`${response.url}: ${response.status} ${response.statusText}`)
-        }
 
-        // Если получаем 401 и запрос еще не был рефрешнут
         if (response.status === 401) {
-            // Если рефреш УЖЕ идет — ждем его. Если нет — запускаем новый.
             if (!refreshPromise) {
                 refreshPromise = refreshTokens();
             }
@@ -74,9 +70,12 @@ const authMiddleware: Middleware = {
             const newAccessToken = await refreshPromise;
 
             if (newAccessToken) {
-                // Создаем клонированный запрос с новым токеном
-                const newRequest = new Request(request, {
-                    headers: new Headers(request.headers)
+                // 💡 4. Берем сохраненный клон со «живым» body, а не сгоревший request
+                // @ts-ignore
+                const retryReq: Request = request._retryRequest || request;
+
+                const newRequest = new Request(retryReq, {
+                    headers: new Headers(retryReq.headers)
                 });
                 newRequest.headers.set("Authorization", `Bearer ${newAccessToken}`);
 

@@ -1,13 +1,19 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { client } from "../shared/api/client.ts";
 
-export const usePlaylistsQuery = (page: number, search: string) => {
+// 💡 Делаем userId опциональным (number | null | undefined)
+export const usePlaylistsQuery = (page: number, search: string, userId?: string | null) => {
     return useQuery({
-        queryKey: ['playlists', page, search],
+        queryKey: ['playlists', page, search, userId],
         queryFn: async ({ signal }) => {
             const response = await client.GET('/playlists', {
                 params: {
-                    query: { pageNumber: page, search }
+                    query: {
+                        pageNumber: page,
+                        search: search || undefined,
+                        // 💡 Прокидываем userId в API (если null/undefined — передастся undefined и параметр опустится)
+                        userId: userId ?? undefined
+                    }
                 },
                 signal
             });
@@ -18,12 +24,12 @@ export const usePlaylistsQuery = (page: number, search: string) => {
         },
         placeholderData: keepPreviousData,
         retry: 2,
-        // 💡 Трансформируем данные и сужаем типы
-        select: (data) => ({
-            ...data,
-            data: data.data.filter((playlist) =>
-                Boolean(playlist.attributes.images.main?.[0]?.url)
-            )
-        })
+        // 💡 Фильтрация по наличию обложки делается один раз здесь
+        // select: (data) => ({
+        //     ...data,
+        //     data: data.data.filter((playlist) =>
+        //         Boolean(playlist.attributes.images.main?.[0]?.url)
+        //     )
+        // })
     });
 };
