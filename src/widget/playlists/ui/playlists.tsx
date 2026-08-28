@@ -3,6 +3,7 @@ import { usePlaylistsQuery } from "../../../hooks/usePlaylistsQuery.ts";
 import { IsError } from "../../../features/query-status/isError.tsx";
 import { IsPending } from "../../../features/query-status/isPending.tsx";
 import { Pagination } from "../../../shared/ui/pagination/pagination.tsx";
+import {DeletePlaylists} from "../../../features/playlists/delete-playlists/ui/delete-playlists.tsx";
 
 type Props = {
     userId?: string;
@@ -62,7 +63,7 @@ export const Playlist = ({ userId: propsUserId }: Props) => {
                                     </div>
                                 )}
                                 <span style={{ fontSize: '28px', fontWeight: 800 }}>
-                    {playlist.attributes.title}
+                    {playlist.attributes.title} <DeletePlaylists playlistId={playlist.id}/>
                 </span>
                             </div>
                             <hr style={{ borderColor: '#27272a', margin: '16px 0' }} />
