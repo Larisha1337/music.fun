@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { usePlaylistsQuery } from "../../../hooks/usePlaylistsQuery.ts";
+import { useMeQuery } from "../../../hooks/useMyQuery.ts"; // 💡 Импортируем твой хук
 import { IsError } from "../../../features/query-status/isError.tsx";
 import { IsPending } from "../../../features/query-status/isPending.tsx";
 import { Pagination } from "../../../shared/ui/pagination/pagination.tsx";
-import {DeletePlaylists} from "../../../features/playlists/delete-playlists/ui/delete-playlists.tsx";
+import { DeletePlaylists } from "../../../features/playlists/delete-playlists/ui/delete-playlists.tsx";
 
 type Props = {
     userId?: string;
@@ -12,6 +13,12 @@ type Props = {
 export const Playlist = ({ userId: propsUserId }: Props) => {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
+
+    // 💡 1. Получаем текущего пользователя из useMeQuery
+    const { data: meData } = useMeQuery();
+
+    // Вытаскиваем ID (в зависимости от формата ответа бэка: meData.id или meData.data.id)
+    const currentUserId = meData?.userId;
 
     // @ts-ignore
     const [userId, setUserId] = useState<string | null>(propsUserId ?? null);
@@ -45,10 +52,13 @@ export const Playlist = ({ userId: propsUserId }: Props) => {
                 {query.data.data.map((playlist) => {
                     const imageUrl = playlist.attributes.images.main?.[0]?.url;
 
+                    // 💡 2. Сравниваем ID текущего юзера с ID автора плейлиста
+                    // (Проверь в консоли/типах, где лежит id создателя: playlist.attributes.userId или playlist.userId)
+                    const isOwner = Boolean(currentUserId && playlist.attributes.user.id === currentUserId);
+
                     return (
                         <li key={playlist.id}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                                {/* 💡 Показываем изображение или серый плейсхолдер */}
                                 {imageUrl ? (
                                     <img
                                         src={imageUrl}
@@ -63,8 +73,10 @@ export const Playlist = ({ userId: propsUserId }: Props) => {
                                     </div>
                                 )}
                                 <span style={{ fontSize: '28px', fontWeight: 800 }}>
-                    {playlist.attributes.title} <DeletePlaylists playlistId={playlist.id}/>
-                </span>
+                                    {playlist.attributes.title}{' '}
+                                    {/* 💡 3. Кнопка монтируется только если isOwner === true */}
+                                    {isOwner && <DeletePlaylists playlistId={playlist.id} />}
+                                </span>
                             </div>
                             <hr style={{ borderColor: '#27272a', margin: '16px 0' }} />
                         </li>
