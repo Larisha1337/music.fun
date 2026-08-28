@@ -21,30 +21,37 @@ type PlaylistsResponse = {
     };
 };
 
-
 export const useDeleteMutation = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: async (playlistId: string) => {
-            const response = await client.DELETE('/playlists/{playlistId}', {
+            const { data, error } = await client.DELETE('/playlists/{playlistId}', {
                 params: { path: { playlistId } }
             });
-            return response.data;
+
+            // 💡 1. КРИТИЧЕСКИ ВАЖНО: пробрасываем ошибку вручную,
+            // чтобы TanStack Query перехватил 403/500 и вызвал onError!
+            if (error) {
+                throw error;
+            }
+
+            return data;
         },
 
-        // Срабатывает МГНОВЕННО при вызове mutate()
         onMutate: async (playlistId: string) => {
-            // 1. Отменяем исходящие запросы, чтобы они не перезаписали наш оптимистичный стейт
+            // Отменяем исходящие запросы
             await queryClient.cancelQueries({ queryKey: ['playlists'] });
 
-            // 2. Сохраняем предыдущее состояние кэша на случай отката при ошибке
-            const previousPlaylists = queryClient.getQueryData(['playlists']);
+            // 💡 2. Сохраняем снимок ВСЕХ списков плейлистов в памяти (getQueriesData во множественном числе)
+            const previousPlaylists = queryClient.getQueriesData<PlaylistsResponse>({
+                queryKey: ['playlists']
+            });
 
-            // 3. Мгновенно удаляем элемент из UI
+            // Оптимистично вырезаем плейлист
             queryClient.setQueriesData<PlaylistsResponse>(
                 { queryKey: ['playlists'] },
-                (oldData) => { // TS теперь сам знает, что oldData имеет тип PlaylistsResponse | undefined
+                (oldData) => {
                     if (!oldData?.data) return oldData;
                     return {
                         ...oldData,
@@ -53,14 +60,15 @@ export const useDeleteMutation = () => {
                 }
             );
 
-            // 4. Возвращаем контекст с предыдущими данными
             return { previousPlaylists };
         },
 
-        // Если бэк вернул ошибку (например, 500 или нет прав) — откатываем UI назад
-        onError: (_err: Error, _playlistId: string, context) => {
+        onError: (_err, _playlistId, context) => {
+            // 💡 3. Откатываем КАЖДЫЙ сохраненный список из контекста обратно на свои места
             if (context?.previousPlaylists) {
-                queryClient.setQueryData(['playlists'], context.previousPlaylists);
+                context.previousPlaylists.forEach(([queryKey, data]) => {
+                    queryClient.setQueryData(queryKey, data);
+                });
             }
         }
     });
