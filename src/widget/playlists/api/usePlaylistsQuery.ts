@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { client } from "../shared/api/client.ts";
+import { client } from "../../../shared/api/client.ts";
 
 // 💡 Делаем userId опциональным (number | null | undefined)
 export const usePlaylistsQuery = (page: number, search: string, userId?: string | null) => {
