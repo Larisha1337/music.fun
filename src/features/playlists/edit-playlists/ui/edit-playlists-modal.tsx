@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { EditPlaylistForm } from "./edit-playlists-form"; // путь к твоей форме редактирования
+import { EditPlaylistForm } from "./form/edit-playlists-form.tsx"; // путь к твоей форме редактирования
 
 type Props = {
     playlistId: string;
