@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../../shared/api/client.ts";
+import type {SchemaGetPlaylistsOutput} from "../../../../shared/api/schema.ts";
 
 type Playlist = {
     id: string;
@@ -49,9 +50,9 @@ export const useDeleteMutation = () => {
             });
 
             // Оптимистично вырезаем плейлист
-            queryClient.setQueriesData<PlaylistsResponse>(
+            queryClient.setQueriesData(
                 { queryKey: ['playlists'] },
-                (oldData) => {
+                (oldData: SchemaGetPlaylistsOutput) => {
                     if (!oldData?.data) return oldData;
                     return {
                         ...oldData,
