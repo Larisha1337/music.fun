@@ -4,7 +4,7 @@ import { useMeQuery } from "../../../hooks/useMyQuery.ts"; // 💡 Подтян�
 import { IsError } from "../../../features/query-status/isError.tsx";
 import { IsPending } from "../../../features/query-status/isPending.tsx";
 import { Pagination } from "../../../shared/ui/pagination/pagination.tsx";
-import { Lists } from "./\';\'/lists.tsx";
+import { Lists } from "./';'/lists.tsx";
 
 type Props = {
     userId?: string;
