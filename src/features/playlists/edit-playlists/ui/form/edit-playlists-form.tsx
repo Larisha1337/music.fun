@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../../../shared/api/client.ts";
 import type { FormValues, Props } from "./type/edit-type.ts";
 
-
 export const EditPlaylistForm = ({
                                      playlistId,
                                      initialTitle = '',
@@ -40,15 +39,19 @@ export const EditPlaylistForm = ({
             if (response.error) throw response.error;
             return response.data;
         },
-        onSuccess: (_, variables) => {
-            // 1. Достаем старые сохраненные описания из localStorage
+
+        // ⚡️ 1. Срабатывает МОМЕНТАЛЬНО при нажатии на кнопку "Save Changes"
+        onMutate: async (variables) => {
+            // Отменяем текущие запросы за плейлистами, чтобы они не перетерли наши оптимистичные данные
+            await queryClient.cancelQueries({ queryKey: ['playlists'] });
+
+            // Делаем "слепок" (snapshot) старых данных на случай ошибки
+            const previousPlaylists = queryClient.getQueryData(['playlists']);
+
             const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+            const previousDescription = saved[playlistId];
 
-            // 2. Записываем новое описание для конкретного плейлиста
-            saved[playlistId] = variables.description;
-            localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
-
-            // 3. Обновляем кэш TanStack Query (как делали до этого)
+            // 🚀 ОПТИМИСТИЧНО ОБНОВЛЯЕМ КЭШ СРАЗУ ЖЕ
             queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
                 if (!oldData) return oldData;
                 return {
@@ -68,7 +71,42 @@ export const EditPlaylistForm = ({
                 };
             });
 
+            // 🚀 ОПТИМИСТИЧНО ОБНОВЛЯЕМ LOCALSTORAGE
+            saved[playlistId] = variables.description;
+            localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
+
+            // 💡 ВАЖНО: Закрываем модалку прямо сейчас! Не ждем сервера.
+            // Пользователь мгновенно увидит результат.
             onSuccess?.();
+
+            // Возвращаем слепок старых данных, чтобы передать его в onError
+            return { previousPlaylists, previousDescription };
+        },
+
+        // 🚑 2. Если что-то пошло не так (нет инета, сервер упал)
+        onError: (err, _variables, context) => {
+            // Откатываем кэш реакта к старым данным
+            if (context?.previousPlaylists) {
+                queryClient.setQueriesData({ queryKey: ['playlists'] }, context.previousPlaylists);
+            }
+
+            // Откатываем localStorage
+            if (context !== undefined) {
+                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+                if (context.previousDescription) {
+                    saved[playlistId] = context.previousDescription;
+                } else {
+                    delete saved[playlistId];
+                }
+                localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
+            }
+
+            // Тут в идеале показать тост: toast.error("Ошибка сохранения")
+            console.error("Ошибка обновления плейлиста", err);
+        },
+
+        onSettled: () => {
+            // queryClient.invalidateQueries({ queryKey: ['playlists'] });
         }
     });
 
@@ -80,9 +118,9 @@ export const EditPlaylistForm = ({
         <form
             onSubmit={handleSubmit(onSubmit)}
             style={{ marginTop: '10px', marginBottom: '15px' }}
-            className="max-w-2xl w-full mx-auto p-10 bg-[#18181b] border border-[#27272a] rounded-2xl shadow-2xl space-y-6 text-zinc-100"
+            className="max-w-2xl mx-auto p-10 bg-[#18181b] border border-[#27272a] rounded-2xl shadow-2xl space-y-6 text-zinc-100"
         >
-            <h2 className="text-4xl font-extrabold text-white">
+            <h2 className="w-full text-4xl font-extrabold text-white">
                 Edit Playlist
             </h2>
 
@@ -114,10 +152,11 @@ export const EditPlaylistForm = ({
 
             <button
                 type="submit"
+                // Кнопка все равно будет disabled на долю секунды, но модалка закроется мгновенно
                 disabled={isPending}
-                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-indigo-600/30 cursor-pointer disabled:opacity-50"
+                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-500"
             >
-                {isPending ? "Saving..." : "Save Changes"}
+                {isPending ? "Изменения..." : "Сохранить изменения"}
             </button>
         </form>
     );

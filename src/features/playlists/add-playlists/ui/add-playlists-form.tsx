@@ -87,7 +87,7 @@ export const AddPlaylistForm = () => {
 
             <button
                 type="submit"
-                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-indigo-600/30 cursor-pointer"
+                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg cursor-pointer"
             >
                 Create
             </button>
