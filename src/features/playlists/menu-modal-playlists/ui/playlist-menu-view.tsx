@@ -6,27 +6,35 @@ type Props = {
 
 export const PlaylistMenuView = ({ title, onEdit, onDelete }: Props) => {
     return (
-        <div className="space-y-6 text-center">
-            <h3 className="text-2xl font-extrabold text-white break-all">
+        <div className="flex flex-col items-center gap-6 mt-2">
+
+            {/* Заголовок плейлиста */}
+            <h3 className="text-xl font-bold text-zinc-100 text-center tracking-tight">
                 {title}
             </h3>
             <p className="text-zinc-400 text-sm">
                 Выберите действие для этого плейлиста
             </p>
 
-            <div className="flex flex-col gap-3 pt-2">
+            {/* 💡 Обертка для кнопок, которая ставит их в ряд */}
+            <div className="flex items-center justify-between gap-4 w-full">
+
+                {/* Кнопка "Изменить" (слева) */}
                 <button
                     onClick={onEdit}
-                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg cursor-pointer"
+                    className="flex-1 py-3 bg-zinc-800/40 hover:bg-zinc-800 border border-[#27272a] hover:border-zinc-700 text-zinc-300 font-semibold rounded-xl transition-all cursor-pointer"
                 >
                     Изменить
                 </button>
+
+                {/* Кнопка "Удалить" (справа) - можно сделать её красноватой для понимания опасности */}
                 <button
                     onClick={onDelete}
-                    className="w-full py-3.5 bg-red-600/80 hover:bg-red-600 text-white font-bold rounded-xl transition-all shadow-lg cursor-pointer"
+                    className="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-900/50 hover:border-red-500 text-red-500 font-semibold rounded-xl transition-all cursor-pointer"
                 >
                     Удалить
                 </button>
+
             </div>
         </div>
     );

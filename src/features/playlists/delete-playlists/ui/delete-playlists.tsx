@@ -35,10 +35,11 @@ export const DeletePlaylistView = ({ playlistId, title, onCancel, onSuccess }: P
                 >
                     Назад
                 </button>
+                |
                 <button
                     onClick={handleDelete}
                     disabled={isPending}
-                    className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-red-600/30 cursor-pointer disabled:opacity-50"
+                    className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-bold rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-50"
                 >
                     {isPending ? "Удаление..." : "Удалить"}
                 </button>

@@ -13,12 +13,12 @@ type Props = {
 };
 
 export const PlaylistActionsModal = ({
-                                         playlistId,
-                                         title,
-                                         description,
-                                         isOpen,
-                                         onClose,
-                                     }: Props) => {
+ playlistId,
+ title,
+ description,
+ isOpen,
+ onClose,
+      }: Props) => {
     const [mode, setMode] = useState<"menu" | "edit" | "delete">("menu");
 
     if (!isOpen) return null;
