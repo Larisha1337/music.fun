@@ -1,4 +1,5 @@
-import { useDeleteMutation } from "../api/use-delete-mutation.ts";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { client } from "../../../../shared/api/client.ts";
 
 type Props = {
     playlistId: string;
@@ -8,12 +9,70 @@ type Props = {
 };
 
 export const DeletePlaylistView = ({ playlistId, title, onCancel, onSuccess }: Props) => {
-    const { mutate, isPending } = useDeleteMutation();
+    const queryClient = useQueryClient();
+
+    const { mutate, isPending } = useMutation({
+        mutationFn: async () => {
+            const response = await client.DELETE('/playlists/{playlistId}', {
+                params: {
+                    path: { playlistId }
+                }
+            });
+
+            if (response.error) throw response.error;
+            return response.data;
+        },
+
+        // ⚡️ 1. Срабатывает МОМЕНТАЛЬНО при нажатии на "Удалить"
+        onMutate: async () => {
+            // Отменяем текущие запросы, чтобы они не перезаписали кэш
+            await queryClient.cancelQueries({ queryKey: ['playlists'] });
+
+            // Делаем слепок старых данных для отката в случае ошибки
+            const previousPlaylists = queryClient.getQueryData(['playlists']);
+
+            const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+            const previousDescription = saved[playlistId];
+
+            // 🚀 ОПТИМИСТИЧНО УДАЛЯЕМ ПЛЕЙЛИСТ ИЗ КЭША
+            queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                    ...oldData,
+                    data: oldData.data.filter((playlist: any) => playlist.id !== playlistId)
+                };
+            });
+
+            // 🚀 УДАЛЯЕМ ОПИСАНИЕ ИЗ LOCALSTORAGE
+            delete saved[playlistId];
+            localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
+
+            // 💡 Моментально закрываем модалку, не дожидаясь ответа сервера
+            onSuccess();
+
+            return { previousPlaylists, previousDescription };
+        },
+
+        // 🚑 2. Если бэкенд упал — откатываем всё назад
+        onError: (err, _variables, context) => {
+            if (context?.previousPlaylists) {
+                queryClient.setQueriesData({ queryKey: ['playlists'] }, context.previousPlaylists);
+            }
+
+            if (context !== undefined) {
+                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+                if (context.previousDescription !== undefined) {
+                    saved[playlistId] = context.previousDescription;
+                    localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
+                }
+            }
+
+            console.error("Ошибка удаления плейлиста", err);
+        }
+    });
 
     const handleDelete = () => {
-        mutate(playlistId, {
-            onSuccess: () => onSuccess(),
-        });
+        mutate();
     };
 
     return (
@@ -35,7 +94,7 @@ export const DeletePlaylistView = ({ playlistId, title, onCancel, onSuccess }: P
                 >
                     Назад
                 </button>
-                |
+
                 <button
                     onClick={handleDelete}
                     disabled={isPending}
