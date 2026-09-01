@@ -105,4 +105,4 @@ export const DeletePlaylistView = ({ playlistId, title, onCancel, onSuccess }: P
             </div>
         </div>
     );
-};
+}; 
