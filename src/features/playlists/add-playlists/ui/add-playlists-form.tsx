@@ -11,7 +11,7 @@ export const AddPlaylistForm = () => {
     const { handleSubmit, register, reset } = useForm<FormValues>();
     const queryClient = useQueryClient();
 
-    const { mutate } = useMutation({
+    const { mutate, isPending } = useMutation({
         mutationFn: async (formData: FormValues) => {
             const response = await client.POST('/playlists', {
                 body: {
@@ -25,23 +25,102 @@ export const AddPlaylistForm = () => {
                     }
                 }
             });
+            if (response.error) throw response.error;
             return response.data;
         },
-        onSuccess: (data, variables) => {
-            // 💡 Достаем ID только что созданного плейлиста из ответа бэкенда
-            const newPlaylistId = (data as any)?.data?.id;
 
-            if (newPlaylistId && variables.description) {
+        // ⚡️ 1. Мгновенное добавление в кэш до ответа сервера
+        onMutate: async (formData) => {
+            await queryClient.cancelQueries({ queryKey: ['playlists'] });
+
+            const previousPlaylists = queryClient.getQueryData(['playlists']);
+
+            // Генерируем временный ID для UI
+            const tempId = `temp-${Date.now()}`;
+
+            const newPlaylist = {
+                id: tempId,
+                type: 'playlists',
+                attributes: {
+                    title: formData.title,
+                    description: formData.description || null,
+                }
+            };
+
+            // Добавляем новый плейлист в начало списка
+            queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
+                if (!oldData) return oldData;
+
+                if (Array.isArray(oldData)) {
+                    return [newPlaylist, ...oldData];
+                }
+
+                if (oldData.data && Array.isArray(oldData.data)) {
+                    return {
+                        ...oldData,
+                        data: [newPlaylist, ...oldData.data]
+                    };
+                }
+
+                return oldData;
+            });
+
+            // Сохраняем описание в localStorage под временным ID
+            if (formData.description) {
                 const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
-                saved[newPlaylistId] = variables.description;
+                saved[tempId] = formData.description;
                 localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
             }
 
-            queryClient.invalidateQueries({
-                queryKey: ['playlists'],
-                refetchType: 'all'
-            });
-            reset();
+            reset(); // Очищаем форму сразу
+
+            return { previousPlaylists, tempId };
+        },
+
+        // 🚑 2. Откат при ошибке сети
+        onError: (err, _variables, context) => {
+            if (context?.previousPlaylists) {
+                queryClient.setQueriesData({ queryKey: ['playlists'] }, context.previousPlaylists);
+            }
+            if (context?.tempId) {
+                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+                delete saved[context.tempId];
+                localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
+            }
+            console.error("Ошибка создания плейлиста", err);
+        },
+
+        // ✨ 3. Подменяем временный ID на реальный, когда сервер ответил
+        onSuccess: (data: any, _variables, context) => {
+            const realId = data?.data?.id;
+            const tempId = context?.tempId;
+
+            if (realId && tempId) {
+                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+                if (saved[tempId]) {
+                    saved[realId] = saved[tempId];
+                    delete saved[tempId];
+                    localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
+                }
+
+                queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
+                    if (!oldData) return oldData;
+
+                    const updateList = (list: any[]) =>
+                        list.map(item => item.id === tempId ? { ...item, id: realId } : item);
+
+                    if (Array.isArray(oldData)) {
+                        return updateList(oldData);
+                    }
+                    if (oldData.data && Array.isArray(oldData.data)) {
+                        return {
+                            ...oldData,
+                            data: updateList(oldData.data)
+                        };
+                    }
+                    return oldData;
+                });
+            }
         }
     });
 
@@ -87,9 +166,10 @@ export const AddPlaylistForm = () => {
 
             <button
                 type="submit"
-                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg cursor-pointer"
+                disabled={isPending}
+                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-50"
             >
-                Create
+                {isPending ? "Создание..." : "Create"}
             </button>
         </form>
     );
