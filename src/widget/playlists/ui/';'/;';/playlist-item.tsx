@@ -6,7 +6,7 @@ type Props = {
 };
 
 export const PlaylistItem = ({ playlist, description, isOwner, onClick }: Props) => {
-    const imageUrl = playlist.attributes.images.main?.[0]?.url;
+    const imageUrl = playlist.attributes?.images?.main?.[0]?.url;
 
     return (
         <li>

@@ -90,9 +90,10 @@ export const AddPlaylistForm = () => {
             console.error("Ошибка создания плейлиста", err);
         },
 
-        // ✨ 3. Подменяем временный ID на реальный, когда сервер ответил
+        // ✨ Подменяем временный ID на реальный, когда сервер ответил
         onSuccess: (data: any, _variables, context) => {
-            const realId = data?.data?.id;
+            // Поддерживаем оба формата ответа бэкенда (когда id лежит в data.data.id или сразу в data.id)
+            const realId = data?.data?.id || data?.id;
             const tempId = context?.tempId;
 
             if (realId && tempId) {
@@ -106,8 +107,9 @@ export const AddPlaylistForm = () => {
                 queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
                     if (!oldData) return oldData;
 
+                    // Безопасный поиск с проверкой item?.id
                     const updateList = (list: any[]) =>
-                        list.map(item => item.id === tempId ? { ...item, id: realId } : item);
+                        list.map(item => item?.id === tempId ? { ...item, id: realId } : item);
 
                     if (Array.isArray(oldData)) {
                         return updateList(oldData);

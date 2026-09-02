@@ -17,7 +17,10 @@ export const Lists = ({ playlists, currentUserId }: PlaylistListProps) => {
         <>
             <ul className="flex flex-col gap-4">
                 {playlists.map((playlist) => {
-                    const isOwner = Boolean(currentUserId && playlist.attributes.user.id === currentUserId);
+                    const isOwner = Boolean(
+                        playlist.id.startsWith('temp-') ||
+                        (currentUserId && playlist.attributes?.user?.id === currentUserId)
+                    );
                     const description = (playlist.attributes as any).description || savedDescriptions[playlist.id] || '';
 
                     return (
