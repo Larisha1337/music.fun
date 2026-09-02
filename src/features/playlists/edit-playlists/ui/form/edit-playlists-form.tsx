@@ -106,7 +106,10 @@ export const EditPlaylistForm = ({
         },
 
         onSettled: () => {
-            // queryClient.invalidateQueries({ queryKey: ['playlists'] });
+            queryClient.invalidateQueries({
+                queryKey: ['playlists'],
+                refetchType: "all"
+            });
         }
     });
 

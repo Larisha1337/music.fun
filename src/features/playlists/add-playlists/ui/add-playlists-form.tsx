@@ -90,6 +90,7 @@ export const AddPlaylistForm = () => {
             console.error("Ошибка создания плейлиста", err);
         },
 
+
         // ✨ Подменяем временный ID на реальный, когда сервер ответил
         onSuccess: (data: any, _variables, context) => {
             // Поддерживаем оба формата ответа бэкенда (когда id лежит в data.data.id или сразу в data.id)
@@ -123,7 +124,15 @@ export const AddPlaylistForm = () => {
                     return oldData;
                 });
             }
+        },
+
+        onSettled: () => {
+            queryClient.invalidateQueries({
+                queryKey: ['playlists'],
+                refetchType: "all"
+            });
         }
+
     });
 
     const onSubmit = (formData: FormValues) => {
