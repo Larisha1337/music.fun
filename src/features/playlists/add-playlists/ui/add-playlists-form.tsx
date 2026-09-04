@@ -1,6 +1,8 @@
 import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../../shared/api/client.ts";
+// 💡 Импортируем нашу фабрику (проверь путь импорта для твоего проекта)
+import { playlistsKeys } from "../../../../shared/api/keys-factories/playlists-keys-factory.ts";
 
 type FormValues = {
     title: string;
@@ -31,11 +33,12 @@ export const AddPlaylistForm = () => {
 
         // ⚡️ 1. Мгновенное добавление в кэш до ответа сервера
         onMutate: async (formData) => {
-            await queryClient.cancelQueries({ queryKey: ['playlists'] });
+            // ✅ Меняем на фабрику
+            await queryClient.cancelQueries({ queryKey: playlistsKeys.all });
 
-            const previousPlaylists = queryClient.getQueryData(['playlists']);
+            // ✅ Меняем на фабрику
+            const previousPlaylists = queryClient.getQueryData(playlistsKeys.all);
 
-            // Генерируем временный ID для UI
             const tempId = `temp-${Date.now()}`;
 
             const newPlaylist = {
@@ -47,8 +50,8 @@ export const AddPlaylistForm = () => {
                 }
             };
 
-            // Добавляем новый плейлист в начало списка
-            queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
+            // ✅ Меняем на фабрику
+            queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
                 if (!oldData) return oldData;
 
                 if (Array.isArray(oldData)) {
@@ -65,14 +68,13 @@ export const AddPlaylistForm = () => {
                 return oldData;
             });
 
-            // Сохраняем описание в localStorage под временным ID
             if (formData.description) {
                 const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
                 saved[tempId] = formData.description;
                 localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
             }
 
-            reset(); // Очищаем форму сразу
+            reset();
 
             return { previousPlaylists, tempId };
         },
@@ -80,7 +82,8 @@ export const AddPlaylistForm = () => {
         // 🚑 2. Откат при ошибке сети
         onError: (err, _variables, context) => {
             if (context?.previousPlaylists) {
-                queryClient.setQueriesData({ queryKey: ['playlists'] }, context.previousPlaylists);
+                // ✅ Меняем на фабрику
+                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, context.previousPlaylists);
             }
             if (context?.tempId) {
                 const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
@@ -90,10 +93,8 @@ export const AddPlaylistForm = () => {
             console.error("Ошибка создания плейлиста", err);
         },
 
-
         // ✨ Подменяем временный ID на реальный, когда сервер ответил
         onSuccess: (data: any, _variables, context) => {
-            // Поддерживаем оба формата ответа бэкенда (когда id лежит в data.data.id или сразу в data.id)
             const realId = data?.data?.id || data?.id;
             const tempId = context?.tempId;
 
@@ -105,10 +106,10 @@ export const AddPlaylistForm = () => {
                     localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
                 }
 
-                queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
+                // ✅ Меняем на фабрику
+                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
                     if (!oldData) return oldData;
 
-                    // Безопасный поиск с проверкой item?.id
                     const updateList = (list: any[]) =>
                         list.map(item => item?.id === tempId ? { ...item, id: realId } : item);
 
@@ -127,12 +128,12 @@ export const AddPlaylistForm = () => {
         },
 
         onSettled: () => {
+            // ✅ Меняем на фабрику
             queryClient.invalidateQueries({
-                queryKey: ['playlists'],
+                queryKey: playlistsKeys.all,
                 refetchType: "all"
             });
         }
-
     });
 
     const onSubmit = (formData: FormValues) => {

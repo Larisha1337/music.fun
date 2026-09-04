@@ -1,10 +1,11 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { client } from "../../../shared/api/client.ts";
+import {playlistsKeys} from "../../../shared/api/keys-factories/playlists-keys-factory.ts";
 
 // 💡 Делаем userId опциональным (number | null | undefined)
 export const usePlaylistsQuery = (page: number, search: string, userId?: string | null) => {
     return useQuery({
-        queryKey: ['playlists', page, search, userId],
+        queryKey: playlistsKeys.list({ page, search, userId}),
         queryFn: async ({ signal }) => {
             const response = await client.GET('/playlists', {
                 params: {

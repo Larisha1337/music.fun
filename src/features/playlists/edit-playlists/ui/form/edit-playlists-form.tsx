@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../../../shared/api/client.ts";
 import type { FormValues, Props } from "./type/edit-type.ts";
+import {playlistsKeys} from "../../../../../shared/api/keys-factories/playlists-keys-factory.ts";
 
 export const EditPlaylistForm = ({
                                      playlistId,
@@ -43,7 +44,7 @@ export const EditPlaylistForm = ({
         // ⚡️ 1. Срабатывает МОМЕНТАЛЬНО при нажатии на кнопку "Save Changes"
         onMutate: async (variables) => {
             // Отменяем текущие запросы за плейлистами, чтобы они не перетерли наши оптимистичные данные
-            await queryClient.cancelQueries({ queryKey: ['playlists'] });
+            await queryClient.cancelQueries({ queryKey: playlistsKeys.all });
 
             // Делаем "слепок" (snapshot) старых данных на случай ошибки
             const previousPlaylists = queryClient.getQueryData(['playlists']);
@@ -52,7 +53,7 @@ export const EditPlaylistForm = ({
             const previousDescription = saved[playlistId];
 
             // 🚀 ОПТИМИСТИЧНО ОБНОВЛЯЕМ КЭШ СРАЗУ ЖЕ
-            queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
+            queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
                 if (!oldData) return oldData;
                 return {
                     ...oldData,
@@ -87,7 +88,7 @@ export const EditPlaylistForm = ({
         onError: (err, _variables, context) => {
             // Откатываем кэш реакта к старым данным
             if (context?.previousPlaylists) {
-                queryClient.setQueriesData({ queryKey: ['playlists'] }, context.previousPlaylists);
+                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, context.previousPlaylists);
             }
 
             // Откатываем localStorage
@@ -107,7 +108,7 @@ export const EditPlaylistForm = ({
 
         onSettled: () => {
             queryClient.invalidateQueries({
-                queryKey: ['playlists'],
+                queryKey: playlistsKeys.all,
                 refetchType: "all"
             });
         }

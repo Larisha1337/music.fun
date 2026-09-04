@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../../shared/api/client.ts";
+import {playlistsKeys} from "../../../../shared/api/keys-factories/playlists-keys-factory.ts";
 
 type Props = {
     playlistId: string;
@@ -26,16 +27,16 @@ export const DeletePlaylistView = ({ playlistId, title, onCancel, onSuccess }: P
         // ⚡️ 1. Срабатывает МОМЕНТАЛЬНО при нажатии на "Удалить"
         onMutate: async () => {
             // Отменяем текущие запросы, чтобы они не перезаписали кэш
-            await queryClient.cancelQueries({ queryKey: ['playlists'] });
+            await queryClient.cancelQueries({ queryKey: playlistsKeys.all });
 
             // Делаем слепок старых данных для отката в случае ошибки
-            const previousPlaylists = queryClient.getQueryData(['playlists']);
+            const previousPlaylists = queryClient.getQueryData(playlistsKeys.all);
 
             const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
             const previousDescription = saved[playlistId];
 
             // 🚀 ОПТИМИСТИЧНО УДАЛЯЕМ ПЛЕЙЛИСТ ИЗ КЭША
-            queryClient.setQueriesData({ queryKey: ['playlists'] }, (oldData: any) => {
+            queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
                 if (!oldData) return oldData;
                 return {
                     ...oldData,
@@ -56,7 +57,7 @@ export const DeletePlaylistView = ({ playlistId, title, onCancel, onSuccess }: P
         // 🚑 2. Если бэкенд упал — откатываем всё назад
         onError: (err, _variables, context) => {
             if (context?.previousPlaylists) {
-                queryClient.setQueriesData({ queryKey: ['playlists'] }, context.previousPlaylists);
+                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, context.previousPlaylists);
             }
 
             if (context !== undefined) {

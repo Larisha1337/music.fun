@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../../shared/api/client.ts";
 import type {SchemaGetPlaylistsOutput} from "../../../../shared/api/schema.ts";
+import {playlistsKeys} from "../../../../shared/api/keys-factories/playlists-keys-factory.ts";
 
 type Playlist = {
     id: string;
@@ -42,16 +43,16 @@ export const useDeleteMutation = () => {
 
         onMutate: async (playlistId: string) => {
             // Отменяем исходящие запросы
-            await queryClient.cancelQueries({ queryKey: ['playlists'] });
+            await queryClient.cancelQueries({ queryKey: playlistsKeys.all });
 
             // 💡 2. Сохраняем снимок ВСЕХ списков плейлистов в памяти (getQueriesData во множественном числе)
             const previousPlaylists = queryClient.getQueriesData<PlaylistsResponse>({
-                queryKey: ['playlists']
+                queryKey: playlistsKeys.all
             });
 
             // Оптимистично вырезаем плейлист
             queryClient.setQueriesData(
-                { queryKey: ['playlists'] },
+                { queryKey: playlistsKeys.all },
                 (oldData: SchemaGetPlaylistsOutput) => {
                     if (!oldData?.data) return oldData;
                     return {
