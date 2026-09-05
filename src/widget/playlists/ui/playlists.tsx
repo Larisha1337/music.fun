@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { usePlaylistsQuery } from "../api/usePlaylistsQuery.ts";
-import { useMeQuery } from "../../../hooks/useMyQuery.ts"; // 💡 Подтянули юзера наверх
+import { useMeQuery } from "../../../hooks/useMeQuery.ts"; // 💡 Подтянули юзера наверх
 import { IsError } from "../../../features/query-status/isError.tsx";
 import { IsPending } from "../../../features/query-status/isPending.tsx";
 import { Pagination } from "../../../shared/ui/pagination/pagination.tsx";

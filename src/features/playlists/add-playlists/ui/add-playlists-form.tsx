@@ -1,142 +1,16 @@
+// src/features/playlists/ui/AddPlaylistForm.tsx
 import { useForm } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { client } from "../../../../shared/api/client.ts";
-// 💡 Импортируем нашу фабрику (проверь путь импорта для твоего проекта)
-import { playlistsKeys } from "../../../../shared/api/keys-factories/playlists-keys-factory.ts";
-
-type FormValues = {
-    title: string;
-    description: string;
-};
+import { useCreatePlaylistMutation, type CreatePlaylistFormValues } from "../api/use-add-mutation.ts";
 
 export const AddPlaylistForm = () => {
-    const { handleSubmit, register, reset } = useForm<FormValues>();
-    const queryClient = useQueryClient();
+    const { handleSubmit, register, reset } = useForm<CreatePlaylistFormValues>();
 
-    const { mutate, isPending } = useMutation({
-        mutationFn: async (formData: FormValues) => {
-            const response = await client.POST('/playlists', {
-                body: {
-                    data: {
-                        type: 'playlists',
-                        attributes: {
-                            title: formData.title,
-                            description: formData.description || null,
-                            tagIds: []
-                        }
-                    }
-                }
-            });
-            if (response.error) throw response.error;
-            return response.data;
-        },
-
-        // ⚡️ 1. Мгновенное добавление в кэш до ответа сервера
-        onMutate: async (formData) => {
-            // ✅ Меняем на фабрику
-            await queryClient.cancelQueries({ queryKey: playlistsKeys.all });
-
-            // ✅ Меняем на фабрику
-            const previousPlaylists = queryClient.getQueryData(playlistsKeys.all);
-
-            const tempId = `temp-${Date.now()}`;
-
-            const newPlaylist = {
-                id: tempId,
-                type: 'playlists',
-                attributes: {
-                    title: formData.title,
-                    description: formData.description || null,
-                }
-            };
-
-            // ✅ Меняем на фабрику
-            queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
-                if (!oldData) return oldData;
-
-                if (Array.isArray(oldData)) {
-                    return [newPlaylist, ...oldData];
-                }
-
-                if (oldData.data && Array.isArray(oldData.data)) {
-                    return {
-                        ...oldData,
-                        data: [newPlaylist, ...oldData.data]
-                    };
-                }
-
-                return oldData;
-            });
-
-            if (formData.description) {
-                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
-                saved[tempId] = formData.description;
-                localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
-            }
-
-            reset();
-
-            return { previousPlaylists, tempId };
-        },
-
-        // 🚑 2. Откат при ошибке сети
-        onError: (err, _variables, context) => {
-            if (context?.previousPlaylists) {
-                // ✅ Меняем на фабрику
-                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, context.previousPlaylists);
-            }
-            if (context?.tempId) {
-                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
-                delete saved[context.tempId];
-                localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
-            }
-            console.error("Ошибка создания плейлиста", err);
-        },
-
-        // ✨ Подменяем временный ID на реальный, когда сервер ответил
-        onSuccess: (data: any, _variables, context) => {
-            const realId = data?.data?.id || data?.id;
-            const tempId = context?.tempId;
-
-            if (realId && tempId) {
-                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
-                if (saved[tempId]) {
-                    saved[realId] = saved[tempId];
-                    delete saved[tempId];
-                    localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
-                }
-
-                // ✅ Меняем на фабрику
-                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
-                    if (!oldData) return oldData;
-
-                    const updateList = (list: any[]) =>
-                        list.map(item => item?.id === tempId ? { ...item, id: realId } : item);
-
-                    if (Array.isArray(oldData)) {
-                        return updateList(oldData);
-                    }
-                    if (oldData.data && Array.isArray(oldData.data)) {
-                        return {
-                            ...oldData,
-                            data: updateList(oldData.data)
-                        };
-                    }
-                    return oldData;
-                });
-            }
-        },
-
-        onSettled: () => {
-            // ✅ Меняем на фабрику
-            queryClient.invalidateQueries({
-                queryKey: playlistsKeys.all,
-                refetchType: "all"
-            });
-        }
+    // Передаем reset в callback успешного создания мутации
+    const { mutate, isPending } = useCreatePlaylistMutation(() => {
+        reset();
     });
 
-    const onSubmit = (formData: FormValues) => {
+    const onSubmit = (formData: CreatePlaylistFormValues) => {
         mutate(formData);
     };
 

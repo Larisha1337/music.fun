@@ -1,77 +1,67 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../../shared/api/client.ts";
-import type {SchemaGetPlaylistsOutput} from "../../../../shared/api/schema.ts";
-import {playlistsKeys} from "../../../../shared/api/keys-factories/playlists-keys-factory.ts";
+import { playlistsKeys } from "../../../../shared/api/keys-factories/playlists-keys-factory.ts";
 
-type Playlist = {
-    id: string;
-    attributes: {
-        title: string;
-        description?: string | null;
-        images: {
-            main?: Array<{ url: string }>;
-        };
-    };
-};
-
-type PlaylistsResponse = {
-    data: Playlist[];
-    meta: {
-        pageNumber: number;
-        pagesCount: number;
-        totalCount: number;
-    };
-};
-
-export const useDeleteMutation = () => {
+export const useDeletePlaylistMutation = (onSuccessCallback?: () => void) => {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: async (playlistId: string) => {
-            const { data, error } = await client.DELETE('/playlists/{playlistId}', {
-                params: { path: { playlistId } }
+            const response = await client.DELETE('/playlists/{playlistId}', {
+                params: {
+                    path: { playlistId }
+                }
             });
 
-            // 💡 1. КРИТИЧЕСКИ ВАЖНО: пробрасываем ошибку вручную,
-            // чтобы TanStack Query перехватил 403/500 и вызвал onError!
-            if (error) {
-                throw error;
-            }
-
-            return data;
+            if (response.error) throw response.error;
+            return response.data;
         },
 
-        onMutate: async (playlistId: string) => {
-            // Отменяем исходящие запросы
+        onMutate: async (playlistId) => {
             await queryClient.cancelQueries({ queryKey: playlistsKeys.all });
 
-            // 💡 2. Сохраняем снимок ВСЕХ списков плейлистов в памяти (getQueriesData во множественном числе)
-            const previousPlaylists = queryClient.getQueriesData<PlaylistsResponse>({
-                queryKey: playlistsKeys.all
+            const previousPlaylists = queryClient.getQueryData(playlistsKeys.all);
+
+            const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+            const previousDescription = saved[playlistId];
+
+            queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                    ...oldData,
+                    data: oldData.data.filter((playlist: any) => playlist.id !== playlistId)
+                };
             });
 
-            // Оптимистично вырезаем плейлист
-            queryClient.setQueriesData(
-                { queryKey: playlistsKeys.all },
-                (oldData: SchemaGetPlaylistsOutput) => {
-                    if (!oldData?.data) return oldData;
-                    return {
-                        ...oldData,
-                        data: oldData.data.filter((playlist) => playlist.id !== playlistId)
-                    };
-                }
-            );
+            delete saved[playlistId];
+            localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
 
-            return { previousPlaylists };
+            onSuccessCallback?.();
+
+            return { previousPlaylists, previousDescription, playlistId };
         },
 
-        onError: (_err, _playlistId, context) => {
-            // 💡 3. Откатываем КАЖДЫЙ сохраненный список из контекста обратно на свои места
+        onError: (err, _variables, context) => {
             if (context?.previousPlaylists) {
-                context.previousPlaylists.forEach(([queryKey, data]) => {
-                    queryClient.setQueryData(queryKey, data);
-                });
+                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, context.previousPlaylists);
             }
+
+            if (context !== undefined && context.playlistId) {
+                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
+                if (context.previousDescription !== undefined) {
+                    saved[context.playlistId] = context.previousDescription;
+                    localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
+                }
+            }
+
+            console.error("Ошибка удаления плейлиста", err);
+        },
+
+        onSettled: () => {
+            queryClient.invalidateQueries({
+                queryKey: playlistsKeys.all,
+                refetchType: "all"
+            });
         }
     });
 };

@@ -1,4 +1,4 @@
-import {useMeQuery} from "../hooks/useMyQuery.ts";
+import {useMeQuery} from "../hooks/useMeQuery.ts";
 import {Navigate} from "@tanstack/react-router";
 import {Playlist} from "../widget/playlists/ui/playlists.tsx";
 import {AddPlaylistForm} from "../features/playlists/add-playlists/ui/add-playlists-form.tsx";

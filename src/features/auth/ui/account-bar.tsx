@@ -1,4 +1,4 @@
-import { useMeQuery } from "../../../hooks/useMyQuery.ts";
+import { useMeQuery } from "../../../hooks/useMeQuery.ts";
 import { LoginButton } from "./button/login-button.tsx";
 import { UserProfile } from "./user-profile.tsx";
 

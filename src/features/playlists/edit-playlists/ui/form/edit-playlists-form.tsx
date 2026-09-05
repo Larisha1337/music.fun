@@ -1,8 +1,7 @@
+// src/features/playlists/ui/EditPlaylistForm.tsx
 import { useForm } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { client } from "../../../../../shared/api/client.ts";
 import type { FormValues, Props } from "./type/edit-type.ts";
-import {playlistsKeys} from "../../../../../shared/api/keys-factories/playlists-keys-factory.ts";
+import { useEditPlaylistMutation } from "../../api/use-edit-mutation.ts";
 
 export const EditPlaylistForm = ({
                                      playlistId,
@@ -17,102 +16,7 @@ export const EditPlaylistForm = ({
         }
     });
 
-    const queryClient = useQueryClient();
-
-    const { mutate, isPending } = useMutation({
-        mutationFn: async (formData: FormValues) => {
-            const response = await client.PUT('/playlists/{playlistId}', {
-                params: {
-                    path: { playlistId }
-                },
-                body: {
-                    data: {
-                        type: 'playlists',
-                        attributes: {
-                            title: formData.title,
-                            description: formData.description || null,
-                            tagIds: []
-                        }
-                    }
-                }
-            });
-
-            if (response.error) throw response.error;
-            return response.data;
-        },
-
-        // ⚡️ 1. Срабатывает МОМЕНТАЛЬНО при нажатии на кнопку "Save Changes"
-        onMutate: async (variables) => {
-            // Отменяем текущие запросы за плейлистами, чтобы они не перетерли наши оптимистичные данные
-            await queryClient.cancelQueries({ queryKey: playlistsKeys.all });
-
-            // Делаем "слепок" (snapshot) старых данных на случай ошибки
-            const previousPlaylists = queryClient.getQueryData(['playlists']);
-
-            const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
-            const previousDescription = saved[playlistId];
-
-            // 🚀 ОПТИМИСТИЧНО ОБНОВЛЯЕМ КЭШ СРАЗУ ЖЕ
-            queryClient.setQueriesData({ queryKey: playlistsKeys.all }, (oldData: any) => {
-                if (!oldData) return oldData;
-                return {
-                    ...oldData,
-                    data: oldData.data.map((playlist: any) =>
-                        playlist.id === playlistId
-                            ? {
-                                ...playlist,
-                                attributes: {
-                                    ...playlist.attributes,
-                                    title: variables.title,
-                                    description: variables.description
-                                }
-                            }
-                            : playlist
-                    )
-                };
-            });
-
-            // 🚀 ОПТИМИСТИЧНО ОБНОВЛЯЕМ LOCALSTORAGE
-            saved[playlistId] = variables.description;
-            localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
-
-            // 💡 ВАЖНО: Закрываем модалку прямо сейчас! Не ждем сервера.
-            // Пользователь мгновенно увидит результат.
-            onSuccess?.();
-
-            // Возвращаем слепок старых данных, чтобы передать его в onError
-            return { previousPlaylists, previousDescription };
-        },
-
-        // 🚑 2. Если что-то пошло не так (нет инета, сервер упал)
-        onError: (err, _variables, context) => {
-            // Откатываем кэш реакта к старым данным
-            if (context?.previousPlaylists) {
-                queryClient.setQueriesData({ queryKey: playlistsKeys.all }, context.previousPlaylists);
-            }
-
-            // Откатываем localStorage
-            if (context !== undefined) {
-                const saved = JSON.parse(localStorage.getItem('playlist_descriptions') || '{}');
-                if (context.previousDescription) {
-                    saved[playlistId] = context.previousDescription;
-                } else {
-                    delete saved[playlistId];
-                }
-                localStorage.setItem('playlist_descriptions', JSON.stringify(saved));
-            }
-
-            // Тут в идеале показать тост: toast.error("Ошибка сохранения")
-            console.error("Ошибка обновления плейлиста", err);
-        },
-
-        onSettled: () => {
-            queryClient.invalidateQueries({
-                queryKey: playlistsKeys.all,
-                refetchType: "all"
-            });
-        }
-    });
+    const { mutate, isPending } = useEditPlaylistMutation(playlistId, onSuccess);
 
     const onSubmit = (formData: FormValues) => {
         mutate(formData);
@@ -156,9 +60,8 @@ export const EditPlaylistForm = ({
 
             <button
                 type="submit"
-                // Кнопка все равно будет disabled на долю секунды, но модалка закроется мгновенно
                 disabled={isPending}
-                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-500"
+                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-bold text-base rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-50"
             >
                 {isPending ? "Изменения..." : "Сохранить изменения"}
             </button>
