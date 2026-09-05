@@ -5,6 +5,7 @@ import { IsError } from "../../../features/query-status/isError.tsx";
 import { IsPending } from "../../../features/query-status/isPending.tsx";
 import { Pagination } from "../../../shared/ui/pagination/pagination.tsx";
 import { Lists } from "./';'/lists.tsx";
+import {useDebounce} from "../api/debounce/useDebounce.ts";
 
 type Props = {
     userId?: string;
@@ -13,14 +14,16 @@ type Props = {
 export const Playlist = ({ userId: propsUserId }: Props) => {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
+    // Значение для запроса засыпает на 400мс после последнего нажатия клавиши
+    const debouncedSearch = useDebounce(search, 400);
+    // @ts-ignore
+    const [userId, setUserId] = useState<string | null>(propsUserId ?? null);
 
     const { data: meData } = useMeQuery();
     const currentUserId = meData?.userId;
 
-    // @ts-ignore
-    const [userId, setUserId] = useState<string | null>(propsUserId ?? null);
 
-    const query = usePlaylistsQuery(page, search, userId);
+    const query = usePlaylistsQuery(page, debouncedSearch, userId);
 
     const handleSearchChange = (value: string) => {
         setSearch(value);
