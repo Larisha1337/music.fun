@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {client} from "../../../shared/api/client.ts";
+import { client } from "../../../shared/api/client.ts";
+import { authKeys } from "../../../shared/api/keys-factories/auth-keys-factory.ts"; // 💡 Импортируем фабрику
 
 export const callbackUrl = 'http://localhost:5173/oauth/callback';
 
 export const useLoginMutation = () => {
     const queryClient = useQueryClient();
-
 
     const mutation = useMutation({
         mutationFn: async ({ code }: { code: string }) => {
@@ -24,12 +24,9 @@ export const useLoginMutation = () => {
             localStorage.setItem('musicfun-refresh-token', data.refreshToken);
             localStorage.setItem('musicfun-access-token', data.accessToken);
 
-            // 💡 Инвалидируем 'me', чтобы приложение перерисовало авторизованное состояние
-            queryClient.invalidateQueries({ queryKey: ['me'] });
+            queryClient.invalidateQueries({ queryKey: authKeys.me() });
         }
     });
 
-
-
-    return mutation
+    return mutation;
 };

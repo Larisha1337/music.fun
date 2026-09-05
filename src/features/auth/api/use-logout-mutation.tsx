@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "../../../shared/api/client.ts";
+import {authKeys} from "../../../shared/api/keys-factories/auth-keys-factory.ts";
 
 export const useLogoutMutation = () => {
     const queryClient = useQueryClient();
@@ -20,7 +21,7 @@ export const useLogoutMutation = () => {
             localStorage.removeItem('musicfun-refresh-token');
 
             queryClient.setQueryData(['me'], null);
-            queryClient.invalidateQueries({ queryKey: ['me'] });
+            queryClient.invalidateQueries({ queryKey: authKeys.me() });
         }
     });
 };
