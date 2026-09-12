@@ -1,0 +1,19 @@
+.container {
+    padding-top: 10px;
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.nav {
+    display: flex;
+    gap: 20px;
+}
+header {
+     /* 👈 Полоска под шапкой на всю ширину экрана */
+     border-bottom: 1px solid #1f2022; /* Цвет линии (можно подобрать под макет, например #2a2c2e) */
+     padding-bottom: 10px;            /* Отступ от текста/ссылок до полоски */
+     margin-bottom: 20px;             /* Отступ от полоски до контента ниже */
+ }
