@@ -6,4 +6,4 @@ export const login = async (email: string, password: string): Promise<string> =>
     })
     const data = await response.json()
     return data.token
-}
+}  //
