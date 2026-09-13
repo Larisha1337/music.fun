@@ -13,12 +13,12 @@ type Props = {
 };
 
 export const PlaylistActionsModal = ({
- playlistId,
- title,
- description,
- isOpen,
- onClose,
-      }: Props) => {
+                                         playlistId,
+                                         title,
+                                         description,
+                                         isOpen,
+                                         onClose,
+                                     }: Props) => {
     const [mode, setMode] = useState<"menu" | "edit" | "delete">("menu");
 
     if (!isOpen) return null;
@@ -30,7 +30,9 @@ export const PlaylistActionsModal = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-            <div className="relative max-w-md w-full bg-[#18181b] border border-[#27272a] rounded-3xl p-8 shadow-2xl text-zinc-100">
+            <div className={`relative w-full transition-all duration-200 ${
+                mode === "edit" ? "max-w-2xl" : "max-w-md"
+            } bg-[#18181b] border border-[#27272a] rounded-3xl p-8 shadow-2xl text-zinc-100`}>
 
                 <ModalCloseButton onClick={handleClose} />
 
@@ -48,6 +50,7 @@ export const PlaylistActionsModal = ({
                         initialTitle={title}
                         initialDescription={description}
                         onSuccess={handleClose}
+                        onCancel={handleClose}
                     />
                 )}
 
@@ -55,7 +58,7 @@ export const PlaylistActionsModal = ({
                     <DeletePlaylistView
                         playlistId={playlistId}
                         title={title}
-                        onCancel={() => setMode("menu")}
+                        onCancel={handleClose}
                         onSuccess={handleClose}
                     />
                 )}

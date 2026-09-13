@@ -3,9 +3,16 @@ import { useState } from "react";
 import type { CreatePlaylistFormValues } from "../../playlists-images/api/use-create-playlist-mutation.ts";
 import { CoverImageUpload } from "../../playlists-images/ui/cover-image-upload.tsx";
 import { checkImageDimensions } from "../../playlists-images/api/check-images-dimensions.ts";
+// Импортируем твою проверку MP3
+import { checkMp3File } from "../../../tracks/api/check-mp3-file.ts";
+
+// Расширяем типизацию формы, добавляя MP3 файл
+export interface ExtendedPlaylistFormValues extends CreatePlaylistFormValues {
+    mp3File: FileList;
+}
 
 interface AddPlaylistFormProps {
-    onSubmit: (formData: CreatePlaylistFormValues) => void;
+    onSubmit: (formData: ExtendedPlaylistFormValues) => void;
     onCancel?: () => void;
     isPending?: boolean;
 }
@@ -20,13 +27,15 @@ export const AddPlaylistForm = ({ onSubmit, onCancel, isPending = false }: AddPl
         setValue,
         setError,
         formState: { isSubmitting, errors }
-    } = useForm<CreatePlaylistFormValues>();
+    } = useForm<ExtendedPlaylistFormValues>();
 
-    const handleFormSubmit = async (formData: CreatePlaylistFormValues) => {
+    const handleFormSubmit = async (formData: ExtendedPlaylistFormValues) => {
         if (isLocalLoading) return;
 
         const imageFile = formData.file?.[0];
+        const mp3File = formData.mp3File?.[0]; // Достаем MP3
 
+        // 1. Валидация картинки
         if (imageFile) {
             const { isValid, error } = await checkImageDimensions(imageFile);
             if (!isValid) {
@@ -38,13 +47,26 @@ export const AddPlaylistForm = ({ onSubmit, onCancel, isPending = false }: AddPl
             }
         }
 
+        // 2. Валидация MP3 файла
+        if (mp3File) {
+            const { isValid, error } = checkMp3File(mp3File);
+            if (!isValid) {
+                setError("mp3File", {
+                    type: "manual",
+                    message: error,
+                });
+                return;
+            }
+        }
+
         setIsLocalLoading(true);
         try {
+            // Отправляем все данные дальше в родительский компонент
             await onSubmit(formData);
         } catch (err: any) {
             setError("file", {
                 type: "manual",
-                message: err.message || "Ошибка загрузки обложки",
+                message: err.message || "Ошибка при создании",
             });
         } finally {
             setIsLocalLoading(false);
@@ -70,13 +92,13 @@ export const AddPlaylistForm = ({ onSubmit, onCancel, isPending = false }: AddPl
             )}
 
             <h2 className="text-3xl font-extrabold tracking-tight text-white text-center mb-6">
-                Add New Playlist
+                Add New Playlist & Track
             </h2>
 
             <CoverImageUpload
-                register={register}
-                watch={watch}
-                setValue={setValue}
+                register={register as any}
+                watch={watch as any}
+                setValue={setValue as any}
                 disabled={isLoading}
                 error={errors.file?.message}
             />
@@ -109,6 +131,26 @@ export const AddPlaylistForm = ({ onSubmit, onCancel, isPending = false }: AddPl
                         className="px-5 py-3.5 w-full bg-[#27272a]/70 border border-[#3f3f46] rounded-xl text-base text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all resize-none text-center disabled:opacity-50"
                     />
                 </div>
+            </div>
+
+            {/* ДОБАВЛЕН БЛОК ДЛЯ MP3 */}
+            <div className="space-y-2">
+                <label className="block text-base font-medium text-zinc-300 text-center mb-2">
+                    MP3 File
+                </label>
+                <input
+                    type="file"
+                    accept="audio/mpeg,.mp3"
+                    disabled={isLoading}
+                    {...register('mp3File', { required: 'Выбери mp3-файл' })}
+                    className="w-full text-sm text-zinc-300 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-indigo-600 file:text-white file:font-medium hover:file:bg-indigo-500 file:cursor-pointer cursor-pointer disabled:opacity-50"
+                />
+                <p className="text-[11px] text-zinc-500 text-center">Максимум 1 MB</p>
+                {errors.mp3File?.message && (
+                    <p className="text-red-400 text-xs font-medium text-center mt-1">
+                        {errors.mp3File.message as string}
+                    </p>
+                )}
             </div>
 
             <hr className="opacity-10" />

@@ -101,7 +101,7 @@ export const EditPlaylistForm = ({
                     type="button"
                     onClick={onCancel}
                     disabled={isLoading}
-                    className="absolute top-5 right-5 text-zinc-400 hover:text-white transition-colors cursor-pointer disabled:pointer-events-none"
+                    className="absolute top-5 right-5 z-30 text-zinc-400 hover:text-white text-xl font-bold transition-colors cursor-pointer disabled:pointer-events-none"
                 >
                     ✕
                 </button>

@@ -41,6 +41,7 @@ export const EditPlaylistModal = ({
                             initialDescription={initialDescription || ''}
                             initialCoverUrl={initialCoverUrl}
                             onSuccess={() => setIsOpen(false)}
+                            onCancel={() => setIsOpen(false)}
                         />
                     </div>
                 </div>

@@ -1,38 +1,58 @@
 import { useState, useRef } from "react";
-import { AddPlaylistForm } from "./add-playlists-form.tsx";
-import { useCreatePlaylistMutation, type CreatePlaylistFormValues } from "../api/use-add-mutation.ts";
+import { AddPlaylistForm, type ExtendedPlaylistFormValues } from "./add-playlists-form.tsx";
+import { useCreatePlaylistMutation } from "../api/use-add-mutation.ts";
+// Укажи точный путь к хуку загрузки трека:
+import { useUploadTrackMutation } from "../../../tracks/api/use-upload-track-mutation.ts";
 
 export const AddPlaylistModal = () => {
     const [isOpen, setIsOpen] = useState(false);
-    // Замок от спам-кликов
     const isSubmittingRef = useRef(false);
 
-    const { mutate, isPending, reset } = useCreatePlaylistMutation(() => {
-        setIsOpen(false);
-        isSubmittingRef.current = false;
-    });
+    // Достаем mutateAsync из обоих хуков
+    const { mutateAsync: createPlaylist, isPending: isCreating, reset: resetCreate } = useCreatePlaylistMutation();
+    const { mutateAsync: uploadTrack, isPending: isUploading, reset: resetUpload } = useUploadTrackMutation();
 
-    const handleFormSubmit = (formData: CreatePlaylistFormValues) => {
+    const handleFormSubmit = async (formData: ExtendedPlaylistFormValues) => {
         if (isSubmittingRef.current) return;
         isSubmittingRef.current = true;
 
-        mutate(formData, {
-            onError: () => {
-                isSubmittingRef.current = false;
-            }
-        });
+        try {
+            // 1. Создаем плейлист с текстовыми данными и обложкой
+            await createPlaylist({
+                title: formData.title,
+                description: formData.description,
+                file: formData.file,
+            });
+
+            // 2. После успешного создания отправляем MP3-файл
+            await uploadTrack({
+                title: formData.title,
+                file: formData.mp3File,
+            });
+
+            // 3. Закрываем модалку только при успехе обоих запросов
+            setIsOpen(false);
+        } catch (error) {
+            console.error("Ошибка в цепочке запросов:", error);
+        } finally {
+            isSubmittingRef.current = false;
+        }
     };
 
     const handleClose = () => {
         setIsOpen(false);
         isSubmittingRef.current = false;
-        reset(); // Сбрасываем ошибки мутации только при закрытии
+        resetCreate();
+        resetUpload();
     };
 
     const handleOpen = () => {
-        reset();
+        resetCreate();
+        resetUpload();
         setIsOpen(true);
     };
+
+    const isPending = isCreating || isUploading;
 
     return (
         <>
