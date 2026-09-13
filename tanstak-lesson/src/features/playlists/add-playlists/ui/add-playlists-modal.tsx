@@ -17,23 +17,28 @@ export const AddPlaylistModal = () => {
         isSubmittingRef.current = true;
 
         try {
-            // 1. Создаем плейлист с текстовыми данными и обложкой
-            await createPlaylist({
+            // 1. Создаем плейлист и получаем результат
+            const createdPlaylist = await createPlaylist({
                 title: formData.title,
                 description: formData.description,
                 file: formData.file,
             });
 
-            // 2. После успешного создания отправляем MP3-файл
+            // Достаем id созданного плейлиста из ответа сервера
+            const playlistId = createdPlaylist?.data?.id || createdPlaylist?.id;
+
+            // 2. Отправляем MP3-файл
             await uploadTrack({
                 title: formData.title,
                 file: formData.mp3File,
+                playlistId,
             });
 
-            // 3. Закрываем модалку только при успехе обоих запросов
-            setIsOpen(false);
-        } catch (error) {
-            console.error("Ошибка в цепочке запросов:", error);
+            // 3. Закрываем модалку при успехе
+            handleClose();
+        } catch (error: any) {
+            console.error("Ошибка при создании:", error);
+            alert(error?.message || "Произошла ошибка при загрузке");
         } finally {
             isSubmittingRef.current = false;
         }
