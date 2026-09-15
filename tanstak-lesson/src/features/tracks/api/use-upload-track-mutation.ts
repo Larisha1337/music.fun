@@ -1,13 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { localStorageKey } from '../../../shared/config/local-storage-key.ts'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://musicfun.it-incubator.app/api/1.0'
-const API_KEY = import.meta.env.VITE_API_KEY
+const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
 export type UploadTrackFormValues = {
     title: string
-    file: File | FileList
-    playlistId?: string
+    file: FileList
 }
 
 export const useUploadTrackMutation = (onSuccess?: () => void) => {
@@ -16,37 +14,28 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
     return useMutation({
         mutationFn: async (formData: UploadTrackFormValues) => {
             const token = localStorage.getItem(localStorageKey.accessToken)
-            const file = formData.file instanceof FileList ? formData.file[0] : formData.file
-
-            if (!file) {
-                throw new Error('Файл не выбран')
-            }
+            const file = formData.file?.[0]
+            if (!file) throw new Error('Файл не выбран')
 
             const body = new FormData()
             body.append('title', formData.title)
             body.append('file', file)
 
-            // Возвращаем корректный рабочий URL
-            const response = await fetch(`${API_BASE}/playlists/tracks/upload`, {
+            const response = await fetch(`${MY_API_BASE}/api/tracks`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'api-key': API_KEY || '',
-                },
+                headers: { Authorization: `Bearer ${token}` },
                 body
             })
 
             if (!response.ok) {
-                const errorData = await response.json()
-                const message = errorData?.errors?.[0]?.detail ?? errorData?.title ?? 'Не удалось загрузить трек'
-                throw new Error(message)
+                const error = await response.json()
+                throw new Error(error.message ?? 'Не удалось загрузить трек')
             }
 
             return response.json()
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['playlists'] })
-            queryClient.invalidateQueries({ queryKey: ['tracks'] })
+            queryClient.invalidateQueries({ queryKey: ['my-tracks'] })
             onSuccess?.()
         }
     })

@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import cors from 'cors'
 import 'dotenv/config'
 import userRoutes from './routes/user.js'
+import trackRoutes from './routes/track.js'
 
 
 const app = express()
@@ -16,6 +17,7 @@ mongoose.connect(process.env.MONGO_URI)
     .catch((err) => console.error('Ошибка подключения к MongoDB:', err))
 
 app.use('/api/user', userRoutes)
+app.use('/api/tracks', trackRoutes)
 
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`))

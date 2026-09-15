@@ -9,7 +9,7 @@ type Props = {
     isPending?: boolean
 }
 
-export const AddTrackForm = ({ onSubmit, onCancel, isPending = false }: Props) => {
+export const UploadTrackForm = ({ onSubmit, onCancel, isPending = false }: Props) => {
     const [isLocalLoading, setIsLocalLoading] = useState(false)
 
     const {
@@ -23,7 +23,6 @@ export const AddTrackForm = ({ onSubmit, onCancel, isPending = false }: Props) =
         if (isLocalLoading) return
 
         const file = formData.file?.[0]
-
         if (file) {
             const { isValid, error } = checkMp3File(file)
             if (!isValid) {
@@ -61,7 +60,7 @@ export const AddTrackForm = ({ onSubmit, onCancel, isPending = false }: Props) =
             )}
 
             <h2 className="text-3xl font-extrabold tracking-tight text-white text-center mb-6">
-                Add New Track
+                Upload Track
             </h2>
 
             <div className="space-y-2">
@@ -89,7 +88,7 @@ export const AddTrackForm = ({ onSubmit, onCancel, isPending = false }: Props) =
                     {...register('file', { required: 'Выбери mp3-файл' })}
                     className="w-full text-sm text-zinc-300 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:bg-indigo-600 file:text-white file:font-medium hover:file:bg-indigo-500 file:cursor-pointer cursor-pointer disabled:opacity-50"
                 />
-                <p className="text-[11px] text-zinc-500 text-center">Максимум 1 MB</p>
+                <p className="text-[11px] text-zinc-500 text-center">Максимум 20 MB</p>
                 {errors.file?.message && (
                     <p className="text-red-400 text-xs font-medium text-center mt-1">
                         {errors.file.message as string}
@@ -113,7 +112,7 @@ export const AddTrackForm = ({ onSubmit, onCancel, isPending = false }: Props) =
                         <span>Uploading...</span>
                     </>
                 ) : (
-                    'Upload Track'
+                    'Upload'
                 )}
             </button>
         </form>

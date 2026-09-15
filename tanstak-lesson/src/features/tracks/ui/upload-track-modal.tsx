@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react'
-import { AddTrackForm } from './add-track-form.tsx'
+import { UploadTrackForm } from './upload-track-form.tsx'
 import { useUploadTrackMutation, type UploadTrackFormValues } from '../api/use-upload-track-mutation.ts'
 
-export const AddTrackModal = () => {
+export const UploadTrackModal = () => {
     const [isOpen, setIsOpen] = useState(false)
     const isSubmittingRef = useRef(false)
 
@@ -44,12 +44,12 @@ export const AddTrackModal = () => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </span>
-                <span>Add New Track</span>
+                <span>Upload Track</span>
             </button>
 
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <AddTrackForm
+                    <UploadTrackForm
                         onSubmit={handleFormSubmit}
                         onCancel={handleClose}
                         isPending={isPending}

@@ -4,9 +4,9 @@ export const checkMp3File = (file: File): { isValid: boolean; error?: string } =
         return { isValid: false, error: 'Файл должен быть в формате mp3' }
     }
 
-    const maxSize = 1 * 1024 * 1024 // лимит самого API - 1 MB
+    const maxSize = 20 * 1024 * 1024 // 20 MB
     if (file.size > maxSize) {
-        return { isValid: false, error: 'Максимальный размер файла — 1 MB' }
+        return { isValid: false, error: 'Максимальный размер файла — 20 MB' }
     }
 
     return { isValid: true }
