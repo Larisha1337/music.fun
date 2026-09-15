@@ -38,7 +38,6 @@ export const AddPlaylistModal = () => {
             handleClose();
         } catch (error: any) {
             console.error("Ошибка при создании:", error);
-            alert(error?.message || "Произошла ошибка при загрузке");
         } finally {
             isSubmittingRef.current = false;
         }

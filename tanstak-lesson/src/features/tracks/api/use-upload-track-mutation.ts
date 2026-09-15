@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { localStorageKey } from '../../../shared/config/local-storage-key.ts'
 
-const API_BASE = 'https://musicfun.it-incubator.app/api/1.0'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://musicfun.it-incubator.app/api/1.0'
+const API_KEY = import.meta.env.VITE_API_KEY
 
 export type UploadTrackFormValues = {
     title: string
-    file: FileList
+    file: File | FileList
     playlistId?: string
 }
 
@@ -15,7 +16,7 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
     return useMutation({
         mutationFn: async (formData: UploadTrackFormValues) => {
             const token = localStorage.getItem(localStorageKey.accessToken)
-            const file = formData.file?.[0]
+            const file = formData.file instanceof FileList ? formData.file[0] : formData.file
 
             if (!file) {
                 throw new Error('Файл не выбран')
@@ -25,13 +26,13 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
             body.append('title', formData.title)
             body.append('file', file)
 
-            if (formData.playlistId) {
-                body.append('playlistId', formData.playlistId)
-            }
-
+            // Возвращаем корректный рабочий URL
             const response = await fetch(`${API_BASE}/playlists/tracks/upload`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'api-key': API_KEY || '',
+                },
                 body
             })
 
@@ -44,7 +45,6 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
             return response.json()
         },
         onSuccess: () => {
-            // Обязательно инвалидируем ключи плейлистов, чтобы список перезапросился
             queryClient.invalidateQueries({ queryKey: ['playlists'] })
             queryClient.invalidateQueries({ queryKey: ['tracks'] })
             onSuccess?.()
