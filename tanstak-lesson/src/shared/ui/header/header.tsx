@@ -15,6 +15,7 @@ export const Header = ({ renderAccountBar }: Props) => (
             {/* Ссылки влево */}
             <div className={styles.nav}>
                 <Link to="/">Playlists</Link>
+                <Link to="/my-tracks">My Tracks</Link>
             </div>
 
             {/* 👈 Вызываем renderAccountBar, чтобы отрисовать <div>Account</div> справа */}
