@@ -29,6 +29,25 @@ router.post('/', authMiddleware, uploadTrack.single('file'), async (req, res) =>
     }
 })
 
+router.put('/:id', authMiddleware, async (req, res) => {
+    try {
+        const track = await Track.findOneAndUpdate(
+            { _id: req.params.id, userId: req.userId },
+            { title: req.body.title },
+            { new: true }
+        )
+
+        if (!track) {
+            return res.status(404).json({ message: 'Трек не найден' })
+        }
+
+        res.json({ track })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Ошибка обновления трека' })
+    }
+})
+
 router.get('/my', authMiddleware, async (req, res) => {
     try {
         const tracks = await Track.find({ userId: req.userId }).sort({ createdAt: -1 })
