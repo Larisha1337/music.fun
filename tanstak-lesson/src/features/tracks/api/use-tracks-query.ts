@@ -7,6 +7,7 @@ type Track = {
     _id: string
     title: string
     fileUrl: string
+    coverUrl?: string | null
     fileSize: number
 }
 
