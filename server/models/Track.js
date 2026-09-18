@@ -4,6 +4,7 @@ const trackSchema = new mongoose.Schema({
     userId: { type: String, required: true },
     title: { type: String, required: true },
     fileUrl: { type: String, required: true },
+    coverUrl: { type: String, default: null },
     fileSize: { type: Number },
     createdAt: { type: Date, default: Date.now }
 })

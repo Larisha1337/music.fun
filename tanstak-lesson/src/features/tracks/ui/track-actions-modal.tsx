@@ -6,11 +6,12 @@ import { DeleteTrackView } from "./delete-track-view.tsx";
 type Props = {
     trackId: string;
     title: string;
+    coverUrl?: string | null;
     isOpen: boolean;
     onClose: () => void;
 };
 
-export const TrackActionsModal = ({ trackId, title, isOpen, onClose }: Props) => {
+export const TrackActionsModal = ({ trackId, title, coverUrl, isOpen, onClose }: Props) => {
     const [mode, setMode] = useState<"menu" | "edit" | "delete">("menu");
 
     if (!isOpen) return null;
@@ -44,6 +45,7 @@ export const TrackActionsModal = ({ trackId, title, isOpen, onClose }: Props) =>
                     <EditTrackForm
                         trackId={trackId}
                         initialTitle={title}
+                        initialCoverUrl={coverUrl}
                         onSuccess={handleClose}
                         onCancel={handleClose}
                     />

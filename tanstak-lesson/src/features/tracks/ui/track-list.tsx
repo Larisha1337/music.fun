@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useMyTracksQuery } from '../api/use-tracks-query.ts'
 import { TrackActionsModal } from './track-actions-modal.tsx'
 
-const MY_API_BASE = 'http://localhost:5000'
+const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
+
+type SelectedTrack = { _id: string; title: string; coverUrl?: string | null }
 
 export const TrackList = () => {
     const { data: tracks = [], isLoading } = useMyTracksQuery()
     const [playingId, setPlayingId] = useState<string | null>(null)
-    const [selectedTrack, setSelectedTrack] = useState<{ _id: string; title: string } | null>(null)
+    const [selectedTrack, setSelectedTrack] = useState<SelectedTrack | null>(null)
 
     const togglePlay = (id: string) => {
         setPlayingId((prev) => (prev === id ? null : id))
@@ -47,7 +49,7 @@ export const TrackList = () => {
                                 </button>
 
                                 <span
-                                    onClick={() => setSelectedTrack({ _id: track._id, title: track.title })}
+                                    onClick={() => setSelectedTrack({ _id: track._id, title: track.title, coverUrl: track.coverUrl })}
                                     className="text-sm font-medium text-zinc-200 truncate cursor-pointer hover:text-indigo-400 transition-colors"
                                 >
                   {track.title}
@@ -72,6 +74,7 @@ export const TrackList = () => {
                 <TrackActionsModal
                     trackId={selectedTrack._id}
                     title={selectedTrack.title}
+                    coverUrl={selectedTrack.coverUrl}
                     isOpen={Boolean(selectedTrack)}
                     onClose={() => setSelectedTrack(null)}
                 />
