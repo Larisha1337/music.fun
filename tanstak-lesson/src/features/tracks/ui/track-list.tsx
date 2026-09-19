@@ -4,12 +4,15 @@ import { TrackActionsModal } from './track-actions-modal.tsx'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
-type SelectedTrack = { _id: string; title: string; coverUrl?: string | null }
-
 export const TrackList = () => {
     const { data: tracks = [], isLoading } = useMyTracksQuery()
     const [playingId, setPlayingId] = useState<string | null>(null)
-    const [selectedTrack, setSelectedTrack] = useState<SelectedTrack | null>(null)
+
+    // Храним только ID выделенного трека
+    const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
+
+    // Всегда находим актуальный трек из React Query
+    const selectedTrack = tracks.find((t) => t._id === selectedTrackId)
 
     const togglePlay = (id: string) => {
         setPlayingId((prev) => (prev === id ? null : id))
@@ -29,31 +32,49 @@ export const TrackList = () => {
 
     return (
         <>
-            <div className="space-y-2">
+            <div className="flex flex-col gap-3.5">
                 {tracks.map((track) => {
                     const isPlaying = playingId === track._id
                     const audioSrc = `${MY_API_BASE}${track.fileUrl}`
+                    const coverSrc = track.coverUrl
+                        ? track.coverUrl.startsWith('http')
+                            ? track.coverUrl
+                            : `${MY_API_BASE}${track.coverUrl}`
+                        : null
 
                     return (
                         <div
                             key={track._id}
-                            className="flex flex-col gap-2 p-3 bg-[#27272a]/40 hover:bg-[#27272a]/70 rounded-xl transition-colors"
+                            className="flex flex-col gap-3 p-3.5 bg-[#18181b]/80 hover:bg-[#27272a]/80 border border-[#27272a] rounded-2xl transition-all shadow-md"
                         >
-                            <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex items-center gap-4 min-w-0">
                                 <button
                                     type="button"
                                     onClick={() => togglePlay(track._id)}
-                                    className="w-8 h-8 rounded-full bg-indigo-600/80 hover:bg-indigo-500 text-white flex items-center justify-center shrink-0 transition-all cursor-pointer"
+                                    className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md active:scale-95"
                                 >
-                                    {isPlaying ? <span className="text-xs">❚❚</span> : <span className="text-xs translate-x-[1px]">▶</span>}
+                                    {isPlaying ? <span className="text-xs font-bold">❚❚</span> : <span className="text-xs translate-x-[1px]">▶</span>}
                                 </button>
 
+                                {/* Компактная обложка в списке */}
+                                <div className="w-40 h-40 rounded-xl overflow-hidden shrink-0 bg-[#27272a] border border-zinc-700/50 flex items-center justify-center shadow-sm">
+                                    {coverSrc ? (
+                                        <img
+                                            src={coverSrc}
+                                            alt={track.title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <span className="text-zinc-500 text-base">🎵</span>
+                                    )}
+                                </div>
+
                                 <span
-                                    onClick={() => setSelectedTrack({ _id: track._id, title: track.title, coverUrl: track.coverUrl })}
-                                    className="text-sm font-medium text-zinc-200 truncate cursor-pointer hover:text-indigo-400 transition-colors"
+                                    onClick={() => setSelectedTrackId(track._id)}
+                                    className="text-base font-semibold text-zinc-100 truncate cursor-pointer hover:text-indigo-400 transition-colors flex-1"
                                 >
-                  {track.title}
-                </span>
+                                    {track.title}
+                                </span>
                             </div>
 
                             {isPlaying && (
@@ -62,7 +83,7 @@ export const TrackList = () => {
                                     controls
                                     autoPlay
                                     onEnded={() => setPlayingId(null)}
-                                    className="h-8 w-full rounded-lg"
+                                    className="h-9 w-full rounded-xl pt-1"
                                 />
                             )}
                         </div>
@@ -76,7 +97,7 @@ export const TrackList = () => {
                     title={selectedTrack.title}
                     coverUrl={selectedTrack.coverUrl}
                     isOpen={Boolean(selectedTrack)}
-                    onClose={() => setSelectedTrack(null)}
+                    onClose={() => setSelectedTrackId(null)}
                 />
             )}
         </>

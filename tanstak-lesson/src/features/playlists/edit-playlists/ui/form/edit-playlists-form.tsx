@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import type { FormValues, Props } from "./type/edit-type.ts";
 import { useEditPlaylistMutation } from "../../api/use-edit-mutation.ts";
 import { checkImageDimensions } from "../../api/check-square-images.ts";
+import {useDeletePlaylistCoverMutation} from "../../../../tracks/api/use-delete-playlist-cover-mutation.ts";
 
 export const EditPlaylistForm = ({
                                      playlistId,
@@ -28,6 +29,12 @@ export const EditPlaylistForm = ({
             description: initialDescription,
         }
     });
+
+    const { mutate: deleteCover, isPending: isDeletingCover } = useDeletePlaylistCoverMutation(onSuccess);
+
+    const handleDeleteCover = () => {
+        deleteCover(playlistId);
+    };
 
     const { mutate, isPending } = useEditPlaylistMutation(playlistId, onSuccess);
     const isLoading = isPending || isSubmitting;
@@ -149,16 +156,25 @@ export const EditPlaylistForm = ({
                             >
                                 Изменить
                             </button>
-                            {selectedFile && (
+                            {selectedFile ? (
                                 <button
                                     type="button"
                                     onClick={handleClearSelectedFile}
                                     disabled={isLoading}
+                                    className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
+                                >
+                                    Сбросить выбор
+                                </button>
+                            ) : initialCoverUrl ? (
+                                <button
+                                    type="button"
+                                    onClick={handleDeleteCover}
+                                    disabled={isLoading || isDeletingCover}
                                     className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
                                 >
-                                    Сбросить
+                                    {isDeletingCover ? "Удаление..." : "Удалить"}
                                 </button>
-                            )}
+                            ) : null}
                         </div>
                     </div>
                 ) : (

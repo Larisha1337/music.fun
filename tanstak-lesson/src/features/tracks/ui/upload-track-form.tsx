@@ -1,5 +1,5 @@
 import { useForm } from 'react-hook-form'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { UploadTrackFormValues } from '../api/use-upload-track-mutation.ts'
 import { checkMp3File } from '../api/check-mp3-file.ts'
 
@@ -11,13 +11,29 @@ type Props = {
 
 export const UploadTrackForm = ({ onSubmit, onCancel, isPending = false }: Props) => {
     const [isLocalLoading, setIsLocalLoading] = useState(false)
+    const [coverPreview, setCoverPreview] = useState<string | null>(null)
 
     const {
         handleSubmit,
         register,
         setError,
+        watch,
         formState: { isSubmitting, errors }
     } = useForm<UploadTrackFormValues>()
+
+    // Отслеживаем файл обложки для предпросмотра
+    const coverFile = watch('cover')
+
+    useEffect(() => {
+        const file = coverFile?.[0]
+        if (file) {
+            const objectUrl = URL.createObjectURL(file)
+            setCoverPreview(objectUrl)
+            return () => URL.revokeObjectURL(objectUrl)
+        } else {
+            setCoverPreview(null)
+        }
+    }, [coverFile])
 
     const handleFormSubmit = async (formData: UploadTrackFormValues) => {
         if (isLocalLoading) return
@@ -63,9 +79,53 @@ export const UploadTrackForm = ({ onSubmit, onCancel, isPending = false }: Props
                 Upload Track
             </h2>
 
+            {/* Поле загрузки обложки (аватарки) */}
+            <div className="space-y-2">
+                <label className="block text-base font-medium text-zinc-300 text-center mb-2">
+                    Обложка
+                </label>
+                <div className="flex justify-center">
+                    {coverPreview ? (
+                        <div className="relative w-32 h-32 rounded-2xl overflow-hidden border-2 border-indigo-500/50 group shadow-lg">
+                            <img src={coverPreview} alt="Cover Preview" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center">
+                                <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors">
+                                    Изменить
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        {...register('cover')}
+                                        disabled={isLoading}
+                                        className="hidden"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+                    ) : (
+                        <label className="flex flex-col items-center justify-center w-32 h-32 rounded-2xl border-2 border-dashed border-zinc-600 hover:border-indigo-500 bg-[#27272a]/40 hover:bg-[#27272a]/70 transition-colors cursor-pointer group shadow-sm">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                <svg className="w-8 h-8 text-zinc-500 group-hover:text-indigo-400 mb-2 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                <span className="text-xs font-medium text-zinc-500 group-hover:text-indigo-400 transition-colors text-center px-2">
+                                    Добавить фото
+                               </span>
+                            </div>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                {...register('cover')}
+                                disabled={isLoading}
+                                className="hidden"
+                            />
+                        </label>
+                    )}
+                </div>
+            </div>
+
             <div className="space-y-2">
                 <label htmlFor="track-title" className="block text-base font-medium text-zinc-300 text-center mb-2">
-                    Title
+                    Название
                 </label>
                 <input
                     {...register('title', { required: true })}
@@ -79,7 +139,7 @@ export const UploadTrackForm = ({ onSubmit, onCancel, isPending = false }: Props
 
             <div className="space-y-2">
                 <label className="block text-base font-medium text-zinc-300 text-center mb-2">
-                    MP3 file
+                    MP3 файл
                 </label>
                 <input
                     type="file"

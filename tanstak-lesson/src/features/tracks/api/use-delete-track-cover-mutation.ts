@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { localStorageKey } from '../../../shared/config/local-storage-key.ts'
 
-const MY_API_BASE='http://localhost:5000'
+const MY_API_BASE ='http://localhost:5000'
 
 export const useDeleteTrackCoverMutation = (onSuccessCallback?: () => void) => {
     const queryClient = useQueryClient()

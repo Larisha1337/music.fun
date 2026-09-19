@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUpdateTrackMutation } from "../api/use-update-track-mutation.ts";
 import { useUploadTrackCoverMutation } from "../api/use-upload-track-cover-mutation.ts";
 import { useDeleteTrackCoverMutation } from "../api/use-delete-track-cover-mutation.ts";
@@ -15,6 +15,16 @@ const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:500
 
 export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSuccess, onCancel }: Props) => {
     const [title, setTitle] = useState(initialTitle);
+    const [localPreview, setLocalPreview] = useState<string | null>(null);
+
+    useEffect(() => {
+        setTitle(initialTitle);
+    }, [initialTitle]);
+
+    // Сбрасываем временное превью, когда приходит свежая ссылка с сервера
+    useEffect(() => {
+        setLocalPreview(null);
+    }, [initialCoverUrl]);
 
     const { mutate: updateTitle, isPending: isSavingTitle } = useUpdateTrackMutation();
     const { mutate: uploadCover, isPending: isUploadingCover } = useUploadTrackCoverMutation();
@@ -22,16 +32,30 @@ export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSucces
 
     const isLoading = isSavingTitle || isUploadingCover || isDeletingCover;
 
-    const coverUrl = initialCoverUrl ? `${MY_API_BASE}${initialCoverUrl}` : null;
+    const serverCoverUrl = initialCoverUrl
+        ? initialCoverUrl.startsWith('http')
+            ? initialCoverUrl
+            : `${MY_API_BASE}${initialCoverUrl}?t=${Date.now()}`
+        : null;
+
+    // Приоритет отдается локальному превью при выборе файла
+    const coverUrl = localPreview || serverCoverUrl;
 
     const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            uploadCover({ trackId, cover: file });
+            setLocalPreview(URL.createObjectURL(file));
+            uploadCover(
+                { trackId, cover: file },
+                {
+                    onError: () => setLocalPreview(null)
+                }
+            );
         }
     };
 
     const handleDeleteCover = () => {
+        setLocalPreview(null);
         deleteCover(trackId);
     };
 
