@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { UploadTrackForm } from './upload-track-form.tsx'
-import { useUploadTrackMutation, type UploadTrackFormValues } from '../api/use-upload-track-mutation.ts'
+import { useUploadTrackMutation, type UploadTrackFormValues } from '../../api/upload/use-upload-track-mutation.ts'
 
 export const UploadTrackModal = () => {
     const [isOpen, setIsOpen] = useState(false)

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { client } from "../../../shared/api/client.ts";
-import { playlistsKeys } from "../../../shared/api/keys-factories/playlists-keys-factory.ts";
+import { client } from "../../../../shared/api/client.ts";
+import { playlistsKeys } from "../../../../shared/api/keys-factories/playlists-keys-factory.ts";
 
 export const useDeletePlaylistCoverMutation = (onSuccessCallback?: () => void) => {
     const queryClient = useQueryClient();

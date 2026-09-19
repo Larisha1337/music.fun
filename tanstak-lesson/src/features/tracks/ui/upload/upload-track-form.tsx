@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { useState, useEffect } from 'react'
-import type { UploadTrackFormValues } from '../api/use-upload-track-mutation.ts'
-import { checkMp3File } from '../api/check-mp3-file.ts'
+import type { UploadTrackFormValues } from '../../api/upload/use-upload-track-mutation.ts'
+import { checkMp3File } from '../../api/check-mp3-file.ts'
 
 type Props = {
     onSubmit: (formData: UploadTrackFormValues) => void

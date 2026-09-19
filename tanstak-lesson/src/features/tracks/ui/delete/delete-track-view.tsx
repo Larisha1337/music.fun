@@ -1,4 +1,4 @@
-import { useDeleteTrackMutation } from "../api/use-delete-track-mutation.ts";
+import { useDeleteTrackMutation } from "../../api/delete/use-delete-track-mutation.ts";
 
 type Props = {
     trackId: string;

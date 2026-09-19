@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { localStorageKey } from '../../../shared/config/local-storage-key.ts'
+import { localStorageKey } from '../../../../shared/config/local-storage-key.ts'
 
 const API_BASE = 'http://localhost:5000/api'
 

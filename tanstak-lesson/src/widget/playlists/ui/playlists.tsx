@@ -4,7 +4,7 @@ import { useMeQuery } from "../../../hooks/useMeQuery.ts";
 import { IsError } from "../../../features/query-status/isError.tsx";
 import { IsPending } from "../../../features/query-status/isPending.tsx";
 import { Pagination } from "../../../shared/ui/pagination/pagination.tsx";
-import { Lists } from "./';'/lists.tsx"; // Исправлен путь
+import { Lists } from "@/widget/playlists/ui/playlists-lists.tsx"; // Исправлен путь
 import { useDebounce } from "../api/debounce/useDebounce.ts";
 
 type Props = {

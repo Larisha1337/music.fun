@@ -1,24 +1,22 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { localStorageKey } from '../../../shared/config/local-storage-key.ts'
+import { localStorageKey } from '../../../../shared/config/local-storage-key.ts'
 
-const MY_API_BASE ='http://localhost:5000'
+const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
-export const useDeleteTrackCoverMutation = (onSuccessCallback?: () => void) => {
+export const useDeleteTrackMutation = (onSuccessCallback?: () => void) => {
     const queryClient = useQueryClient()
 
     return useMutation({
         mutationFn: async (trackId: string) => {
             const token = localStorage.getItem(localStorageKey.accessToken)
-            const response = await fetch(`${MY_API_BASE}/api/tracks/${trackId}/cover`, {
+            const response = await fetch(`${MY_API_BASE}/api/tracks/${trackId}`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` }
             })
-
             if (!response.ok) {
                 const error = await response.json()
-                throw new Error(error.message ?? 'Не удалось удалить обложку')
+                throw new Error(error.message ?? 'Не удалось удалить трек')
             }
-
             return response.json()
         },
         onSuccess: () => {

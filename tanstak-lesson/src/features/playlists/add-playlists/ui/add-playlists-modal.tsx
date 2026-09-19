@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { AddPlaylistForm, type ExtendedPlaylistFormValues } from "./add-playlists-form.tsx";
 import { useCreatePlaylistMutation } from "../api/use-add-mutation.ts";
 // Укажи точный путь к хуку загрузки трека:
-import { useUploadTrackMutation } from "../../../tracks/api/use-upload-track-mutation.ts";
+import { useUploadTrackMutation } from "../../../tracks/api/upload/use-upload-track-mutation.ts";
 
 export const AddPlaylistModal = () => {
     const [isOpen, setIsOpen] = useState(false);

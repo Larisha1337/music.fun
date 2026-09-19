@@ -1,6 +1,6 @@
 import { useMeQuery } from "../hooks/useMeQuery.ts";
 import { Navigate } from "@tanstack/react-router";
-import { UploadTrackModal } from "../features/tracks//ui/upload-track-modal.tsx";
+import { UploadTrackModal } from "../features/tracks/ui/upload/upload-track-modal.tsx";
 import { TrackList } from "../features/tracks/ui/track-list.tsx";
 
 const MyTracksPage = () => {

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { localStorageKey } from '../shared/config/local-storage-key.ts'
+import { localStorageKey } from '@/shared/config/local-storage-key.ts'
 
 export const avatarKeys = {
     avatar: ['my-avatar'] as const

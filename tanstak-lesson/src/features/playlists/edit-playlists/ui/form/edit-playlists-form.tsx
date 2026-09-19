@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import type { FormValues, Props } from "./type/edit-type.ts";
 import { useEditPlaylistMutation } from "../../api/use-edit-mutation.ts";
 import { checkImageDimensions } from "../../api/check-square-images.ts";
-import {useDeletePlaylistCoverMutation} from "../../../../tracks/api/use-delete-playlist-cover-mutation.ts";
+import {useDeletePlaylistCoverMutation} from "../../../../tracks/api/delete/use-delete-playlist-cover-mutation.ts";
 
 export const EditPlaylistForm = ({
                                      playlistId,

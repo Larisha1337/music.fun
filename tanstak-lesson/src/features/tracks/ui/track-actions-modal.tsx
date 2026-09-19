@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TrackMenuView } from "./track-menu-view.tsx";
-import { EditTrackForm } from "./edit-track-form.tsx";
-import { DeleteTrackView } from "./delete-track-view.tsx";
+import { EditTrackForm } from "./edit/edit-track-form.tsx";
+import { DeleteTrackView } from "./delete/delete-track-view.tsx";
 
 type Props = {
     trackId: string;

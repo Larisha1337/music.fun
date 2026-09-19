@@ -1,0 +1,215 @@
+import { useState, useEffect } from "react";
+import { useUpdateTrackMutation } from "../../api/update/use-update-track-mutation.ts";
+import { useUploadTrackCoverMutation } from "../../api/upload/use-upload-track-cover-mutation.ts";
+import { useDeleteTrackCoverMutation } from "../../api/delete/use-delete-track-cover-mutation.ts";
+import { useUpdateTrackFileMutation } from "../../api/update/use-update-track-file-mutation.ts";
+
+type Props = {
+    trackId: string;
+    initialTitle: string;
+    initialCoverUrl?: string | null;
+    onSuccess: () => void;
+    onCancel?: () => void;
+};
+
+const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000';
+
+export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSuccess, onCancel }: Props) => {
+    const [title, setTitle] = useState(initialTitle);
+
+    // Локальное состояние изменений (до нажатия "Сохранить")
+    const [coverFile, setCoverFile] = useState<File | null>(null);
+    const [audioFile, setAudioFile] = useState<File | null>(null);
+    const [isCoverDeleted, setIsCoverDeleted] = useState(false);
+    const [coverPreview, setCoverPreview] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        setTitle(initialTitle);
+    }, [initialTitle]);
+
+    // Берем mutateAsync для асинхронного вызова цепочки запросов
+    const { mutateAsync: updateTitle } = useUpdateTrackMutation();
+    const { mutateAsync: uploadCover } = useUploadTrackCoverMutation();
+    const { mutateAsync: deleteCover } = useDeleteTrackCoverMutation();
+    const { mutateAsync: updateFile } = useUpdateTrackFileMutation();
+
+    // Расчет отображаемого URL обложки
+    const serverCoverUrl = initialCoverUrl
+        ? initialCoverUrl.startsWith('http')
+            ? initialCoverUrl
+            : `${MY_API_BASE}${initialCoverUrl}`
+        : null;
+
+    const currentCoverUrl = isCoverDeleted ? null : (coverPreview || serverCoverUrl);
+
+    // 1. Выбор новой обложки (только локальное предпросмотр)
+    const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setCoverFile(file);
+            setIsCoverDeleted(false);
+            setCoverPreview(URL.createObjectURL(file));
+        }
+    };
+
+    // 2. Удаление обложки (только локальный флаг)
+    const handleDeleteCover = () => {
+        setCoverFile(null);
+        setCoverPreview(null);
+        setIsCoverDeleted(true);
+    };
+
+    // 3. Выбор нового аудиофайла (только локальный файл)
+    const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setAudioFile(file);
+        }
+    };
+
+    // 4. Главный отправщик на сервер по кнопке "Сохранить"
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!title.trim() || isSubmitting) return;
+
+        setIsSubmitting(true);
+
+        try {
+            // А) Обновляем заголовок (если изменился)
+            if (title.trim() !== initialTitle) {
+                await updateTitle({ trackId, title: title.trim() });
+            }
+
+            // Б) Обрабатываем обложку (удаление или новая загрузка)
+            if (isCoverDeleted && initialCoverUrl) {
+                await deleteCover(trackId);
+            } else if (coverFile) {
+                await uploadCover({ trackId, cover: coverFile });
+            }
+
+            // В) Обновляем аудиофайл (если выбрали новый)
+            if (audioFile) {
+                await updateFile({ trackId, file: audioFile });
+            }
+
+            onSuccess();
+        } catch (error) {
+            console.error("Ошибка при сохранении трека:", error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <h2 className="w-full text-3xl font-extrabold text-white text-center">
+                Edit Track
+            </h2>
+
+            {/* Блок Обложки */}
+            <div className="space-y-2">
+                <label className="block text-base font-medium text-zinc-300 text-center mb-2">
+                    Cover
+                </label>
+
+                {currentCoverUrl ? (
+                    <div className="relative w-36 h-36 mx-auto rounded-2xl overflow-hidden border-2 border-indigo-500/50 group shadow-lg">
+                        <img src={currentCoverUrl} alt="Cover" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                            <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors">
+                                Изменить
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleCoverChange}
+                                    disabled={isSubmitting}
+                                    className="hidden"
+                                />
+                            </label>
+                            <button
+                                type="button"
+                                onClick={handleDeleteCover}
+                                disabled={isSubmitting}
+                                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-[#3f3f46] hover:border-indigo-500/80 rounded-2xl cursor-pointer bg-[#27272a]/40 hover:bg-[#27272a]/70 transition-all group">
+                        <span className="text-xs font-semibold text-zinc-400 group-hover:text-indigo-400">
+                            Добавить обложку
+                        </span>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCoverChange}
+                            disabled={isSubmitting}
+                            className="hidden"
+                        />
+                    </label>
+                )}
+            </div>
+
+            {/* Блок Выбора Аудиофайла */}
+            <div className="space-y-2">
+                <label className="block text-base font-medium text-zinc-300">
+                    Audio File
+                </label>
+                <label className="flex items-center justify-between w-full px-5 py-3.5 bg-[#27272a]/70 border border-[#3f3f46] hover:border-indigo-500/80 rounded-xl cursor-pointer transition-all group">
+                    <span className="text-sm font-medium text-zinc-300 truncate pr-2">
+                        {audioFile ? audioFile.name : 'Заменить аудиозапись (.mp3, .wav)'}
+                    </span>
+                    <span className="px-3 py-1 bg-indigo-600 group-hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shrink-0 transition-colors">
+                        Выбрать
+                    </span>
+                    <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleAudioChange}
+                        disabled={isSubmitting}
+                        className="hidden"
+                    />
+                </label>
+            </div>
+
+            {/* Блок Названия */}
+            <div className="space-y-2">
+                <label htmlFor="track-title" className="block text-base font-medium text-zinc-300">
+                    Title
+                </label>
+                <input
+                    id="track-title"
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full px-5 py-3.5 bg-[#27272a]/70 border border-[#3f3f46] rounded-xl text-base text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all disabled:opacity-50"
+                />
+            </div>
+
+            {/* Кнопки управления */}
+            <div className="flex items-center justify-center gap-4 pt-4">
+                {onCancel && (
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        disabled={isSubmitting}
+                        className="px-6 py-2.5 bg-[#27272a] hover:bg-[#3f3f46] text-zinc-200 text-sm font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                    >
+                        Отмена
+                    </button>
+                )}
+                <button
+                    type="submit"
+                    disabled={isSubmitting || !title.trim()}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-50"
+                >
+                    {isSubmitting ? "Сохранение..." : "Сохранить"}
+                </button>
+            </div>
+        </form>
+    );
+};
