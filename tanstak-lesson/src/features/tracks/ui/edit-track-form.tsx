@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useUpdateTrackMutation } from "../api/use-update-track-mutation.ts";
 import { useUploadTrackCoverMutation } from "../api/use-upload-track-cover-mutation.ts";
 import { useDeleteTrackCoverMutation } from "../api/use-delete-track-cover-mutation.ts";
+import { useUpdateTrackFileMutation } from "../api/use-update-track-file-mutation.ts";
 
 type Props = {
     trackId: string;
@@ -16,12 +17,12 @@ const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:500
 export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSuccess, onCancel }: Props) => {
     const [title, setTitle] = useState(initialTitle);
     const [localPreview, setLocalPreview] = useState<string | null>(null);
+    const [selectedAudioName, setSelectedAudioName] = useState<string | null>(null);
 
     useEffect(() => {
         setTitle(initialTitle);
     }, [initialTitle]);
 
-    // Сбрасываем временное превью, когда приходит свежая ссылка с сервера
     useEffect(() => {
         setLocalPreview(null);
     }, [initialCoverUrl]);
@@ -29,8 +30,9 @@ export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSucces
     const { mutate: updateTitle, isPending: isSavingTitle } = useUpdateTrackMutation();
     const { mutate: uploadCover, isPending: isUploadingCover } = useUploadTrackCoverMutation();
     const { mutate: deleteCover, isPending: isDeletingCover } = useDeleteTrackCoverMutation();
+    const { mutate: updateFile, isPending: isUploadingFile } = useUpdateTrackFileMutation();
 
-    const isLoading = isSavingTitle || isUploadingCover || isDeletingCover;
+    const isLoading = isSavingTitle || isUploadingCover || isDeletingCover || isUploadingFile;
 
     const serverCoverUrl = initialCoverUrl
         ? initialCoverUrl.startsWith('http')
@@ -38,7 +40,6 @@ export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSucces
             : `${MY_API_BASE}${initialCoverUrl}?t=${Date.now()}`
         : null;
 
-    // Приоритет отдается локальному превью при выборе файла
     const coverUrl = localPreview || serverCoverUrl;
 
     const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,10 +48,16 @@ export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSucces
             setLocalPreview(URL.createObjectURL(file));
             uploadCover(
                 { trackId, cover: file },
-                {
-                    onError: () => setLocalPreview(null)
-                }
+                { onError: () => setLocalPreview(null) }
             );
+        }
+    };
+
+    const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedAudioName(file.name);
+            updateFile({ trackId, file });
         }
     };
 
@@ -71,6 +78,7 @@ export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSucces
                 Edit Track
             </h2>
 
+            {/* Загрузка / Замена обложки */}
             <div className="space-y-2">
                 <label className="block text-base font-medium text-zinc-300 text-center mb-2">
                     Cover
@@ -104,6 +112,31 @@ export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSucces
                 )}
             </div>
 
+            {/* Замена аудиофайла */}
+            <div className="space-y-2">
+                <label className="block text-base font-medium text-zinc-300">
+                    Audio File
+                </label>
+                <label className="flex items-center justify-between w-full px-5 py-3.5 bg-[#27272a]/70 border border-[#3f3f46] hover:border-indigo-500/80 rounded-xl cursor-pointer transition-all group">
+                    <span className="text-sm font-medium text-zinc-300 truncate pr-2">
+                        {isUploadingFile
+                            ? 'Загрузка нового файла...'
+                            : selectedAudioName || 'Заменить аудиозапись (.mp3, .wav)'}
+                    </span>
+                    <span className="px-3 py-1 bg-indigo-600 group-hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shrink-0 transition-colors">
+                        Выбрать
+                    </span>
+                    <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleAudioChange}
+                        disabled={isLoading}
+                        className="hidden"
+                    />
+                </label>
+            </div>
+
+            {/* Редактирование названия */}
             <form onSubmit={handleSaveTitle} className="space-y-2">
                 <label htmlFor="track-title" className="block text-base font-medium text-zinc-300">
                     Title

@@ -113,6 +113,37 @@ router.get('/my', authMiddleware, async (req, res) => {
     }
 })
 
+// Заменить аудиофайл трека
+router.put('/:id/file', authMiddleware, uploadTrack.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'Аудиофайл не передан' })
+        }
+
+        const track = await Track.findOne({ _id: req.params.id, userId: req.userId })
+        if (!track) {
+            return res.status(404).json({ message: 'Трек не найден' })
+        }
+
+        // Удаляем старый файл
+        if (track.fileUrl) {
+            const oldPath = path.join('uploads/tracks', path.basename(track.fileUrl))
+            fs.unlink(oldPath, (err) => {
+                if (err) console.error('Не удалось удалить старый аудиофайл:', err)
+            })
+        }
+
+        track.fileUrl = `/uploads/tracks/${req.file.filename}`
+        track.fileSize = req.file.size
+        await track.save()
+
+        res.json({ track })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Ошибка при обновлении аудиофайла' })
+    }
+})
+
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
         const track = await Track.findOne({ _id: req.params.id, userId: req.userId })
