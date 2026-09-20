@@ -2,15 +2,26 @@ import { useState, useRef, useEffect, type ChangeEvent } from "react";
 
 type Props = {
     src: string;
+    title?: string;
+    coverSrc?: string | null;
     autoPlay?: boolean;
     onEnded?: () => void;
     onNext?: () => void;
     onPrev?: () => void;
 };
 
-export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPrev }: Props) => {
+export const CustomAudioPlayer = ({
+                                      src,
+                                      title,
+                                      coverSrc,
+                                      autoPlay = true,
+                                      onEnded,
+                                      onNext,
+                                      onPrev
+                                  }: Props) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isBuffering, setIsBuffering] = useState(false);
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
 
@@ -23,7 +34,7 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
         return localStorage.getItem('player-muted') === 'true';
     });
 
-    // 1. Синхронизация громкости
+    // Синхронизация громкости
     useEffect(() => {
         localStorage.setItem('player-volume', String(volume));
         localStorage.setItem('player-muted', String(isMuted));
@@ -33,35 +44,38 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
         }
     }, [volume, isMuted]);
 
-    // 2. Восстановление позиции и воспроизведения при смене / загрузке src
+    // Инициализация и запуск
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio || !src) return;
+
+        setIsBuffering(true);
+        setCurrentTime(0);
+        setDuration(0);
 
         const wasPlaying = localStorage.getItem('player-was-playing') !== 'false';
 
         const initAudio = () => {
             setDuration(audio.duration || 0);
 
-            // Восстанавливаем тайминг
             const savedTime = localStorage.getItem(`player-time-${src}`);
             if (savedTime && Number(savedTime) < audio.duration) {
                 audio.currentTime = Number(savedTime);
                 setCurrentTime(Number(savedTime));
             }
 
-            // Пытаемся запустить воспроизведение
             if (wasPlaying || autoPlay) {
                 audio.play()
                     .then(() => {
                         setIsPlaying(true);
+                        setIsBuffering(false);
                         localStorage.setItem('player-was-playing', 'true');
                     })
                     .catch((err) => {
-                        console.warn("Autoplay blocked by browser. Awaiting user interaction:", err);
+                        console.warn("Autoplay blocked:", err);
                         setIsPlaying(false);
+                        setIsBuffering(false);
 
-                        // Если браузер заблокировал — запускаем звук при ПЕРВОМ ЖЕ клике/нажатии в любом месте экрана
                         const handleUserInteraction = () => {
                             audio.play().then(() => {
                                 setIsPlaying(true);
@@ -75,10 +89,11 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
                         window.addEventListener('click', handleUserInteraction, { once: true });
                         window.addEventListener('keydown', handleUserInteraction, { once: true });
                     });
+            } else {
+                setIsBuffering(false);
             }
         };
 
-        // Если метаданные уже были загружены (из кэша)
         if (audio.readyState >= 1) {
             initAudio();
         } else {
@@ -89,14 +104,6 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
             audio.removeEventListener('loadedmetadata', initAudio);
         };
     }, [src, autoPlay]);
-
-    const handleTimeUpdate = () => {
-        if (audioRef.current) {
-            const time = audioRef.current.currentTime;
-            setCurrentTime(time);
-            localStorage.setItem(`player-time-${src}`, String(time));
-        }
-    };
 
     const togglePlay = () => {
         if (!audioRef.current) return;
@@ -110,6 +117,50 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
                 setIsPlaying(true);
                 localStorage.setItem('player-was-playing', 'true');
             }).catch(console.error);
+        }
+    };
+
+    // Интеграция с Media Session API (шторка OS, системы управления, медиа-клавиши)
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: title || 'Музыкальный трек',
+            artist: 'My App',
+            artwork: coverSrc ? [{ src: coverSrc }] : []
+        });
+
+        navigator.mediaSession.setActionHandler('play', () => {
+            audioRef.current?.play().then(() => {
+                setIsPlaying(true);
+                localStorage.setItem('player-was-playing', 'true');
+            });
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+            audioRef.current?.pause();
+            setIsPlaying(false);
+            localStorage.setItem('player-was-playing', 'false');
+        });
+
+        if (onNext) {
+            navigator.mediaSession.setActionHandler('nexttrack', onNext);
+        } else {
+            navigator.mediaSession.setActionHandler('nexttrack', null);
+        }
+
+        if (onPrev) {
+            navigator.mediaSession.setActionHandler('previoustrack', onPrev);
+        } else {
+            navigator.mediaSession.setActionHandler('previoustrack', null);
+        }
+    }, [title, coverSrc, onNext, onPrev]);
+
+    const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            const time = audioRef.current.currentTime;
+            setCurrentTime(time);
+            localStorage.setItem(`player-time-${src}`, String(time));
         }
     };
 
@@ -183,6 +234,9 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
 
     const toggleMute = () => setIsMuted(!isMuted);
 
+    const progressPercent = (currentTime / (duration || 1)) * 100;
+    const volumePercent = (isMuted ? 0 : volume) * 100;
+
     return (
         <div className="flex items-center gap-3 sm:gap-4 w-full bg-transparent">
             <audio
@@ -190,6 +244,11 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
                 src={src}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={handleEndedTrack}
+                onWaiting={() => setIsBuffering(true)}
+                onPlaying={() => setIsBuffering(false)}
+                onCanPlay={() => setIsBuffering(false)}
+                onSeeking={() => setIsBuffering(true)}
+                onSeeked={() => setIsBuffering(false)}
                 className="hidden"
             />
 
@@ -210,9 +269,15 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
                 <button
                     onClick={togglePlay}
                     type="button"
-                    className="w-10 h-10 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-full transition-colors shrink-0 shadow-md cursor-pointer"
+                    disabled={isBuffering && !duration}
+                    className="w-10 h-10 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/70 text-white rounded-full transition-all shrink-0 shadow-md cursor-pointer"
                 >
-                    {isPlaying ? (
+                    {isBuffering ? (
+                        <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                    ) : isPlaying ? (
                         <svg className="w-4 h-4 fill-current" viewBox="0 0 16 16">
                             <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z" />
                         </svg>
@@ -244,7 +309,10 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
                     max={duration || 100}
                     value={currentTime}
                     onChange={handleProgressChange}
-                    className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 focus:outline-none"
+                    style={{
+                        background: `linear-gradient(to right, #6366f1 ${progressPercent}%, #3f3f46 ${progressPercent}%)`
+                    }}
+                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 focus:outline-none transition-all"
                 />
                 <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
                     <span>{formatTime(currentTime)}</span>
@@ -276,7 +344,10 @@ export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPre
                     step={0.01}
                     value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
-                    className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-zinc-300 hover:accent-white focus:outline-none"
+                    style={{
+                        background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`
+                    }}
+                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-zinc-300 hover:accent-white focus:outline-none transition-all"
                 />
             </div>
         </div>

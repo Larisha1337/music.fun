@@ -39,6 +39,8 @@ export const GlobalPlayer = () => {
                     <CustomAudioPlayer
                         key={currentTrack._id}
                         src={audioSrc}
+                        title={currentTrack.title}
+                        coverSrc={coverSrc}
                         autoPlay
                         onEnded={playNext}
                         onNext={playNext}
