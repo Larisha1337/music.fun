@@ -1,21 +1,34 @@
 import { useState } from 'react'
-import { useMyTracksQuery } from '../api/use-tracks-query.ts'
-import { TrackActionsModal } from './track-actions-modal.tsx'
+import { useMyTracksQuery } from '../api/use-tracks-query'
+import { TrackActionsModal } from './track-actions-modal'
+// 1. Импортируем наш глобальный контекст!
+import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
 export const TrackList = () => {
     const { data: tracks = [], isLoading } = useMyTracksQuery()
-    const [playingId, setPlayingId] = useState<string | null>(null)
-
-    // Храним только ID выделенного трека
     const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
 
-    // Всегда находим актуальный трек из React Query
+    // 2. Достаем функции из глобального плеера вместо локального useState
+    const { currentTrack, playTrack, closePlayer } = useAudioPlayer()
+
     const selectedTrack = tracks.find((t) => t._id === selectedTrackId)
 
-    const togglePlay = (id: string) => {
-        setPlayingId((prev) => (prev === id ? null : id))
+    // 3. Теперь мы передаем в togglePlay весь объект трека
+    const togglePlay = (track: any) => {
+        // Если кликаем по треку, который уже играет — ставим на паузу (закрываем)
+        if (currentTrack?._id === track._id) {
+            closePlayer()
+        } else {
+            // Иначе отправляем данные трека в наш нижний глобальный плеер
+            playTrack({
+                _id: track._id,
+                title: track.title,
+                fileUrl: track.fileUrl,
+                coverUrl: track.coverUrl
+            })
+        }
     }
 
     if (isLoading) {
@@ -32,10 +45,10 @@ export const TrackList = () => {
 
     return (
         <>
-            <div className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-4">
                 {tracks.map((track) => {
-                    const isPlaying = playingId === track._id
-                    const audioSrc = `${MY_API_BASE}${track.fileUrl}`
+                    // 4. Проверяем, играет ли трек, сравнивая с глобальным currentTrack
+                    const isPlaying = currentTrack?._id === track._id
                     const coverSrc = track.coverUrl
                         ? track.coverUrl.startsWith('http')
                             ? track.coverUrl
@@ -45,52 +58,58 @@ export const TrackList = () => {
                     return (
                         <div
                             key={track._id}
-                            className="flex flex-col gap-3 p-3.5 bg-[#18181b]/80 hover:bg-[#27272a]/80 border border-[#27272a] rounded-2xl transition-all shadow-md"
+                            className={`flex items-center gap-4 p-4 hover:bg-[#27272a]/60 border rounded-2xl transition-all shadow-md group ${
+                                isPlaying ? 'bg-[#27272a]/40 border-indigo-500/50' : 'bg-[#18181b]/90 border-[#27272a]'
+                            }`}
                         >
-                            <div className="flex items-center gap-4 min-w-0">
-                                <button
-                                    type="button"
-                                    onClick={() => togglePlay(track._id)}
-                                    className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md active:scale-95"
-                                >
-                                    {isPlaying ? <span className="text-xs font-bold">❚❚</span> : <span className="text-xs translate-x-[1px]">▶</span>}
-                                </button>
+                            {/* Главная кнопка воспроизведения */}
+                            <button
+                                type="button"
+                                onClick={() => togglePlay(track)} // Передаем сам трек!
+                                className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 transition-all shadow-md active:scale-95 cursor-pointer ${
+                                    isPlaying
+                                        ? 'bg-indigo-500 text-white'
+                                        : 'bg-zinc-800 text-zinc-300 hover:bg-indigo-600 hover:text-white border border-zinc-700'
+                                }`}
+                            >
+                                {isPlaying ? (
+                                    <span className="text-[10px] font-bold">❚❚</span>
+                                ) : (
+                                    <span className="text-[10px] translate-x-[1px]">▶</span>
+                                )}
+                            </button>
 
-                                {/* Компактная обложка в списке */}
-                                <div className="w-40 h-40 rounded-xl overflow-hidden shrink-0 bg-[#27272a] border border-zinc-700/50 flex items-center justify-center shadow-sm">
-                                    {coverSrc ? (
-                                        <img
-                                            src={coverSrc}
-                                            alt={track.title}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <span className="text-zinc-500 text-base">🎵</span>
-                                    )}
-                                </div>
+                            {/* Обложка */}
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 bg-[#27272a] flex items-center justify-center shadow-sm">
+                                {coverSrc ? (
+                                    <img
+                                        src={coverSrc}
+                                        alt={track.title}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span className="text-zinc-500 text-xl">🎵</span>
+                                )}
+                            </div>
 
+                            {/* Название */}
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <span
                                     onClick={() => setSelectedTrackId(track._id)}
-                                    className="text-base font-semibold text-zinc-100 truncate cursor-pointer hover:text-indigo-400 transition-colors flex-1"
+                                    className={`text-lg font-bold truncate cursor-pointer transition-colors inline-block ${
+                                        isPlaying ? 'text-indigo-400' : 'text-zinc-100 hover:text-indigo-400'
+                                    }`}
+                                    title="Нажмите для редактирования"
                                 >
                                     {track.title}
                                 </span>
                             </div>
-
-                            {isPlaying && (
-                                <audio
-                                    src={audioSrc}
-                                    controls
-                                    autoPlay
-                                    onEnded={() => setPlayingId(null)}
-                                    className="h-9 w-full rounded-xl pt-1"
-                                />
-                            )}
                         </div>
                     )
                 })}
             </div>
 
+            {/* Модалка действий */}
             {selectedTrack && (
                 <TrackActionsModal
                     trackId={selectedTrack._id}
