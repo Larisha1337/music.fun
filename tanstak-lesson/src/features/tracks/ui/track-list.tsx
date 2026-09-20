@@ -27,7 +27,7 @@ export const TrackList = () => {
                 title: track.title,
                 fileUrl: track.fileUrl,
                 coverUrl: track.coverUrl
-            })
+            }, tracks)
         }
     }
 
