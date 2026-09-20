@@ -1,20 +1,26 @@
-// src/hooks/useMeQuery.ts
-import { useQuery } from "@tanstack/react-query";
-import { client } from "../shared/api/client.ts";
-import { authKeys } from "../shared/api/keys-factories/auth-keys-factory.ts"; // 💡 Импортируем фабрику
+import { useQuery } from '@tanstack/react-query'
+import { localStorageKey } from '@/shared/config/local-storage-key.ts'
+
+const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
 export const useMeQuery = () => {
     return useQuery({
-        queryKey: authKeys.me(),
-        queryFn: async ({ signal }) => {
-            const accessToken = localStorage.getItem('musicfun-access-token');
-            if (!accessToken) return null;
+        queryKey: ['me'],
+        queryFn: async () => {
+            const token = localStorage.getItem(localStorageKey.accessToken)
+            if (!token) return null
 
-            const response = await client.GET('/auth/me', { signal });
-            if (response.error) throw response.error;
-            return response.data;
-        },
-        staleTime: Infinity,
-        retry: false,
-    });
-};
+            const response = await fetch(`${MY_API_BASE}/api/auth/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+
+            if (!response.ok) {
+                localStorage.removeItem(localStorageKey.accessToken)
+                return null
+            }
+
+            const data = await response.json()
+            return data.user
+        }
+    })
+}

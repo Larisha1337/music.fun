@@ -4,6 +4,7 @@ import cors from 'cors'
 import 'dotenv/config'
 import userRoutes from './routes/user.js'
 import trackRoutes from './routes/track.js'
+import authRoutes from './routes/auth.js'
 
 
 const app = express()
@@ -18,6 +19,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 app.use('/api/user', userRoutes)
 app.use('/api/tracks', trackRoutes)
+app.use('/api/auth', authRoutes)
 
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`))

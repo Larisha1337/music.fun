@@ -8,55 +8,163 @@ type Props = {
     onPrev?: () => void;
 };
 
-export const CustomAudioPlayer = ({ src, autoPlay, onEnded, onNext, onPrev }: Props) => {
+export const CustomAudioPlayer = ({ src, autoPlay = true, onEnded, onNext, onPrev }: Props) => {
     const audioRef = useRef<HTMLAudioElement>(null);
-    const [isPlaying, setIsPlaying] = useState(autoPlay || false);
+    const [isPlaying, setIsPlaying] = useState(false);
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
 
-    const [volume, setVolume] = useState(1);
-    const [isMuted, setIsMuted] = useState(false);
+    const [volume, setVolume] = useState<number>(() => {
+        const savedVolume = localStorage.getItem('player-volume');
+        return savedVolume !== null ? Number(savedVolume) : 1;
+    });
 
-    useEffect(() => {
-        if (autoPlay && src && audioRef.current) {
-            setIsPlaying(true);
-            audioRef.current.play().catch(e => console.log("Play interrupted:", e));
-        }
-    }, [src, autoPlay]);
+    const [isMuted, setIsMuted] = useState<boolean>(() => {
+        return localStorage.getItem('player-muted') === 'true';
+    });
 
+    // 1. Синхронизация громкости
     useEffect(() => {
+        localStorage.setItem('player-volume', String(volume));
+        localStorage.setItem('player-muted', String(isMuted));
+
         if (audioRef.current) {
             audioRef.current.volume = isMuted ? 0 : volume;
         }
     }, [volume, isMuted]);
+
+    // 2. Восстановление позиции и воспроизведения при смене / загрузке src
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio || !src) return;
+
+        const wasPlaying = localStorage.getItem('player-was-playing') !== 'false';
+
+        const initAudio = () => {
+            setDuration(audio.duration || 0);
+
+            // Восстанавливаем тайминг
+            const savedTime = localStorage.getItem(`player-time-${src}`);
+            if (savedTime && Number(savedTime) < audio.duration) {
+                audio.currentTime = Number(savedTime);
+                setCurrentTime(Number(savedTime));
+            }
+
+            // Пытаемся запустить воспроизведение
+            if (wasPlaying || autoPlay) {
+                audio.play()
+                    .then(() => {
+                        setIsPlaying(true);
+                        localStorage.setItem('player-was-playing', 'true');
+                    })
+                    .catch((err) => {
+                        console.warn("Autoplay blocked by browser. Awaiting user interaction:", err);
+                        setIsPlaying(false);
+
+                        // Если браузер заблокировал — запускаем звук при ПЕРВОМ ЖЕ клике/нажатии в любом месте экрана
+                        const handleUserInteraction = () => {
+                            audio.play().then(() => {
+                                setIsPlaying(true);
+                                localStorage.setItem('player-was-playing', 'true');
+                            }).catch(() => {});
+
+                            window.removeEventListener('click', handleUserInteraction);
+                            window.removeEventListener('keydown', handleUserInteraction);
+                        };
+
+                        window.addEventListener('click', handleUserInteraction, { once: true });
+                        window.addEventListener('keydown', handleUserInteraction, { once: true });
+                    });
+            }
+        };
+
+        // Если метаданные уже были загружены (из кэша)
+        if (audio.readyState >= 1) {
+            initAudio();
+        } else {
+            audio.addEventListener('loadedmetadata', initAudio, { once: true });
+        }
+
+        return () => {
+            audio.removeEventListener('loadedmetadata', initAudio);
+        };
+    }, [src, autoPlay]);
+
+    const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            const time = audioRef.current.currentTime;
+            setCurrentTime(time);
+            localStorage.setItem(`player-time-${src}`, String(time));
+        }
+    };
+
+    const togglePlay = () => {
+        if (!audioRef.current) return;
+
+        if (isPlaying) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+            localStorage.setItem('player-was-playing', 'false');
+        } else {
+            audioRef.current.play().then(() => {
+                setIsPlaying(true);
+                localStorage.setItem('player-was-playing', 'true');
+            }).catch(console.error);
+        }
+    };
+
+    const handleEndedTrack = () => {
+        localStorage.removeItem(`player-time-${src}`);
+        localStorage.setItem('player-was-playing', 'true');
+        if (onEnded) onEnded();
+    };
+
+    // Горячие клавиши
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+
+            switch (e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'ArrowRight':
+                    if (onNext) {
+                        e.preventDefault();
+                        onNext();
+                    }
+                    break;
+                case 'ArrowLeft':
+                    if (onPrev) {
+                        e.preventDefault();
+                        onPrev();
+                    }
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    setVolume((prev) => Number(Math.min(prev + 0.1, 1).toFixed(2)));
+                    setIsMuted(false);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    setVolume((prev) => Number(Math.max(prev - 0.1, 0).toFixed(2)));
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPlaying, onNext, onPrev]);
 
     const formatTime = (time: number) => {
         if (isNaN(time)) return "0:00";
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-    };
-
-    const togglePlay = () => {
-        if (!audioRef.current) return;
-        if (isPlaying) {
-            audioRef.current.pause();
-        } else {
-            audioRef.current.play();
-        }
-        setIsPlaying(!isPlaying);
-    };
-
-    const handleTimeUpdate = () => {
-        if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
-        }
-    };
-
-    const handleLoadedMetadata = () => {
-        if (audioRef.current) {
-            setDuration(audioRef.current.duration);
-        }
     };
 
     const handleProgressChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -81,14 +189,11 @@ export const CustomAudioPlayer = ({ src, autoPlay, onEnded, onNext, onPrev }: Pr
                 ref={audioRef}
                 src={src}
                 onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onEnded={onEnded}
+                onEnded={handleEndedTrack}
                 className="hidden"
             />
 
-            {/* Блок кнопок управления (Назад, Play/Pause, Вперед) */}
             <div className="flex items-center gap-2 shrink-0">
-                {/* Кнопка Предыдущий трек */}
                 {onPrev && (
                     <button
                         onClick={onPrev}
@@ -102,7 +207,6 @@ export const CustomAudioPlayer = ({ src, autoPlay, onEnded, onNext, onPrev }: Pr
                     </button>
                 )}
 
-                {/* Кнопка Play/Pause */}
                 <button
                     onClick={togglePlay}
                     type="button"
@@ -119,7 +223,6 @@ export const CustomAudioPlayer = ({ src, autoPlay, onEnded, onNext, onPrev }: Pr
                     )}
                 </button>
 
-                {/* Кнопка Следующий трек */}
                 {onNext && (
                     <button
                         onClick={onNext}
@@ -134,7 +237,6 @@ export const CustomAudioPlayer = ({ src, autoPlay, onEnded, onNext, onPrev }: Pr
                 )}
             </div>
 
-            {/* Прогресс-бар и время */}
             <div className="flex flex-col flex-1 gap-1">
                 <input
                     type="range"
@@ -150,7 +252,6 @@ export const CustomAudioPlayer = ({ src, autoPlay, onEnded, onNext, onPrev }: Pr
                 </div>
             </div>
 
-            {/* Управление громкостью */}
             <div className="hidden sm:flex items-center gap-2 w-24 shrink-0">
                 <button
                     onClick={toggleMute}
