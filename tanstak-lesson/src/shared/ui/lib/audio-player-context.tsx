@@ -4,7 +4,7 @@ export type TrackInfo = {
     _id: string;
     id?: string;
     title: string;
-    artist: string;
+    artist?: string;
     fileUrl: string;
     coverUrl?: string | null;
 };

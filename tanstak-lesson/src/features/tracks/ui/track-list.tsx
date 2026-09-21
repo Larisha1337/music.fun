@@ -25,6 +25,7 @@ export const TrackList = () => {
             playTrack({
                 _id: track._id,
                 title: track.title,
+                artist: track.artist || 'Неизвестный исполнитель',
                 fileUrl: track.fileUrl,
                 coverUrl: track.coverUrl
             }, tracks)

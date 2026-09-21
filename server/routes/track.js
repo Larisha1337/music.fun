@@ -5,8 +5,29 @@ import uploadTrack from '../middleware/upload-track.js'
 import uploadTrackCover from '../middleware/upload-track-cover.js'
 import authMiddleware from '../middleware/auth.js'
 import Track from '../models/Track.js'
+import User from '../models/User.js'
 
 const router = express.Router()
+
+router.get('/', async (req, res) => {
+    try {
+        const tracks = await Track.find().sort({ createdAt: -1 }).lean()
+
+        const userIds = [...new Set(tracks.map(t => t.userId))]
+        const users = await User.find({ _id: { $in: userIds } }).select('email').lean()
+        const emailById = Object.fromEntries(users.map(u => [u._id.toString(), u.email]))
+
+        const tracksWithAuthor = tracks.map(t => ({
+            ...t,
+            authorEmail: emailById[t.userId] ?? 'Unknown'
+        }))
+
+        res.json({ tracks: tracksWithAuthor })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Ошибка получения треков' })
+    }
+})
 
 router.post('/', authMiddleware, uploadTrack.single('file'), async (req, res) => {
     try {
