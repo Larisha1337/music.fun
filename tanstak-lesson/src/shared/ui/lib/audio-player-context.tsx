@@ -2,7 +2,9 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type TrackInfo = {
     _id: string;
+    id?: string;
     title: string;
+    artist: string;
     fileUrl: string;
     coverUrl?: string | null;
 };

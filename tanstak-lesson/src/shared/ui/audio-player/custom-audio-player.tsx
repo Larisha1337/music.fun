@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, type ChangeEvent } from "react";
+import { AudioVisualizer } from "./audio-visualizer";
+import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
 
 type Props = {
     src: string;
     title?: string;
     coverSrc?: string | null;
+    ambientColor?: string;
     autoPlay?: boolean;
     onEnded?: () => void;
     onNext?: () => void;
@@ -14,6 +17,7 @@ export const CustomAudioPlayer = ({
                                       src,
                                       title,
                                       coverSrc,
+                                      ambientColor = '#6366f1',
                                       autoPlay = true,
                                       onEnded,
                                       onNext,
@@ -120,7 +124,7 @@ export const CustomAudioPlayer = ({
         }
     };
 
-    // Интеграция с Media Session API (шторка OS, системы управления, медиа-клавиши)
+    // Интеграция с Media Session API
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
 
@@ -252,6 +256,7 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
+            {/* Элементы управления треком */}
             <div className="flex items-center gap-2 shrink-0">
                 {onPrev && (
                     <button
@@ -259,10 +264,9 @@ export const CustomAudioPlayer = ({
                         type="button"
                         className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
                         title="Предыдущий трек"
+                        aria-label="Предыдущий трек"
                     >
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 16 16">
-                            <path d="M12.5 3.5a.5.5 0 0 0-.8-.4l-6 4.5a.5.5 0 0 0 0 .8l6 4.5a.5.5 0 0 0 .8-.4V3.5zM3.5 3a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z"/>
-                        </svg>
+                        <PrevIcon className="w-4 h-4" />
                     </button>
                 )}
 
@@ -271,6 +275,8 @@ export const CustomAudioPlayer = ({
                     type="button"
                     disabled={isBuffering && !duration}
                     className="w-10 h-10 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/70 text-white rounded-full transition-all shrink-0 shadow-md cursor-pointer"
+                    title={isPlaying ? "Пауза" : "Воспроизвести"}
+                    aria-label={isPlaying ? "Пауза" : "Воспроизвести"}
                 >
                     {isBuffering ? (
                         <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
@@ -278,13 +284,9 @@ export const CustomAudioPlayer = ({
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
                     ) : isPlaying ? (
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 16 16">
-                            <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z" />
-                        </svg>
+                        <PauseIcon className="w-4 h-4" />
                     ) : (
-                        <svg className="w-4 h-4 fill-current translate-x-[1px]" viewBox="0 0 16 16">
-                            <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z" />
-                        </svg>
+                        <PlayIcon className="w-4 h-4 translate-x-[1px]" />
                     )}
                 </button>
 
@@ -294,14 +296,14 @@ export const CustomAudioPlayer = ({
                         type="button"
                         className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
                         title="Следующий трек"
+                        aria-label="Следующий трек"
                     >
-                        <svg className="w-4 h-4 fill-current" viewBox="0 0 16 16">
-                            <path d="M3.5 3.5a.5.5 0 0 1 .8-.4l6 4.5a.5.5 0 0 1 0 .8l-6 4.5a.5.5 0 0 1-.8-.4V3.5zM12.5 3a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-1 0v-9a.5.5 0 0 1 .5-.5z"/>
-                        </svg>
+                        <NextIcon className="w-4 h-4" />
                     </button>
                 )}
             </div>
 
+            {/* Прогресс-бар и тайминги */}
             <div className="flex flex-col flex-1 gap-1">
                 <input
                     type="range"
@@ -310,7 +312,7 @@ export const CustomAudioPlayer = ({
                     value={currentTime}
                     onChange={handleProgressChange}
                     style={{
-                        background: `linear-gradient(to right, #6366f1 ${progressPercent}%, #3f3f46 ${progressPercent}%)`
+                        background: `linear-gradient(to right, ${ambientColor} ${progressPercent}%, #3f3f46 ${progressPercent}%)`
                     }}
                     className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 focus:outline-none transition-all"
                 />
@@ -320,10 +322,22 @@ export const CustomAudioPlayer = ({
                 </div>
             </div>
 
+            {/* Аудио-визуалайзер */}
+            <div className="hidden md:flex items-center shrink-0">
+                <AudioVisualizer
+                    audioRef={audioRef}
+                    isPlaying={isPlaying}
+                    color={ambientColor}
+                />
+            </div>
+
+            {/* Громкость */}
             <div className="hidden sm:flex items-center gap-2 w-24 shrink-0">
                 <button
                     onClick={toggleMute}
                     className="text-zinc-400 hover:text-zinc-100 transition-colors focus:outline-none cursor-pointer"
+                    title={isMuted ? "Включить звук" : "Выключить звук"}
+                    aria-label={isMuted ? "Включить звук" : "Выключить звук"}
                 >
                     {isMuted || volume === 0 ? (
                         <svg className="w-5 h-5 fill-current" viewBox="0 0 16 16">
