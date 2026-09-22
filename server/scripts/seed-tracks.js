@@ -5,7 +5,8 @@ import path from 'path'
 import https from 'https'
 import Track from '../models/Track.js'
 
-const SEED_USER_ID = "6ab06b70f4d69ec4ddf8b73d"
+// 💡 Используем системный ID или null, чтобы треки не были привязаны к реальному юзеру
+const SEED_USER_ID = "6ab06b70f4d69ec4ddf8b73d" || "system"
 const uploadDir = 'uploads/tracks'
 const coverDir = 'uploads/track-covers'
 
@@ -15,7 +16,6 @@ if (!fs.existsSync(coverDir)) fs.mkdirSync(coverDir, { recursive: true })
 const downloadFile = (url, filePath) => {
     return new Promise((resolve, reject) => {
         https.get(url, (response) => {
-            // Deezer иногда делает редирект (302)
             if (response.statusCode === 301 || response.statusCode === 302) {
                 return downloadFile(response.headers.location, filePath).then(resolve).catch(reject)
             }
@@ -34,15 +34,9 @@ const downloadFile = (url, filePath) => {
 }
 
 const run = async () => {
-    if (!SEED_USER_ID) {
-        console.error('Необходим SEED_USER_ID в .env')
-        process.exit(1)
-    }
-
     await mongoose.connect(process.env.MONGO_URI)
     console.log('MongoDB подключена')
 
-    // Запрашиваем текущий топ-чарт Deezer (50 популярных треков)
     const response = await fetch('https://api.deezer.com/chart/0/tracks?limit=30')
     const data = await response.json()
     const tracks = data.data
@@ -51,12 +45,11 @@ const run = async () => {
 
     for (const t of tracks) {
         try {
-            if (!t.preview) continue // Пропускаем, если нет MP3 превью
+            if (!t.preview) continue
 
             const audioFileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.mp3`
             const audioPath = path.join(uploadDir, audioFileName)
 
-            // Скачиваем 30-секундный MP3 файл
             await downloadFile(t.preview, audioPath)
 
             let coverUrl = null
@@ -68,12 +61,14 @@ const run = async () => {
                 coverUrl = `/uploads/track-covers/${coverFileName}`
             }
 
+            // 👇 ВОТ ЗДЕСЬ ДОБАВЛЕН ФЛАГ isSeed: true
             await Track.create({
                 userId: SEED_USER_ID,
                 title: `${t.title} — ${t.artist.name}`,
                 fileUrl: `/uploads/tracks/${audioFileName}`,
                 coverUrl,
-                fileSize: fs.statSync(audioPath).size
+                fileSize: fs.statSync(audioPath).size,
+                isSeed: true // 👈 ЖЕСТКО ПОМЕЧАЕМ КАК СИДОВЫЙ ТРЕК
             })
 
             console.log(`✓ Загружен: ${t.title} — ${t.artist.name}`)

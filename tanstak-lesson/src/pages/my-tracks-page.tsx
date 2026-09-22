@@ -1,7 +1,7 @@
 import { useMeQuery } from "../hooks/useMeQuery.ts";
 import { Navigate } from "@tanstack/react-router";
 import { UploadTrackModal } from "../features/tracks/ui/upload/upload-track-modal.tsx";
-import { TrackList } from "../features/tracks/ui/track-list.tsx";
+import {MyTrackList} from "@/features/tracks/ui/my-track-list.tsx";
 
 const MyTracksPage = () => {
     const { data, isPending } = useMeQuery();
@@ -18,7 +18,7 @@ const MyTracksPage = () => {
                 <UploadTrackModal />
             </div>
 
-            <TrackList />
+            <MyTrackList />
         </div>
     );
 };

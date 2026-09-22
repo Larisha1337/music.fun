@@ -1,34 +1,52 @@
 import { useState } from 'react'
-import { useMyTracksQuery } from '../api/use-tracks-query'
 import { TrackActionsModal } from './track-actions-modal'
-// 1. Импортируем наш глобальный контекст!
 import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
-export const TrackList = () => {
-    const { data: tracks = [], isLoading } = useMyTracksQuery()
-    const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
+export type Track = {
+    _id: string
+    title: string
+    fileUrl: string
+    coverUrl?: string | null
+    artist?: string
+    authorEmail?: string
+}
 
-    // 2. Достаем функции из глобального плеера вместо локального useState
+interface TrackListProps {
+    tracks: Track[]
+    isLoading: boolean
+    emptyMessage?: string
+    showAuthor?: boolean
+    enableActions?: boolean // true для "Моих треков", false для "Глобальной ленты"
+}
+
+export const TrackList = ({
+                              tracks = [],
+                              isLoading,
+                              emptyMessage = 'Треков пока нет',
+                              showAuthor = false,
+                              enableActions = false
+                          }: TrackListProps) => {
+    const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
     const { currentTrack, playTrack, closePlayer } = useAudioPlayer()
 
     const selectedTrack = tracks.find((t) => t._id === selectedTrackId)
 
-    // 3. Теперь мы передаем в togglePlay весь объект трека
-    const togglePlay = (track: any) => {
-        // Если кликаем по треку, который уже играет — ставим на паузу (закрываем)
+    const togglePlay = (track: Track) => {
         if (currentTrack?._id === track._id) {
             closePlayer()
         } else {
-            // Иначе отправляем данные трека в наш нижний глобальный плеер
-            playTrack({
-                _id: track._id,
-                title: track.title,
-                artist: track.artist || 'Неизвестный исполнитель',
-                fileUrl: track.fileUrl,
-                coverUrl: track.coverUrl
-            }, tracks)
+            playTrack(
+                {
+                    _id: track._id,
+                    title: track.title,
+                    artist: track.artist || track.authorEmail || 'Неизвестный исполнитель',
+                    fileUrl: track.fileUrl,
+                    coverUrl: track.coverUrl
+                },
+                tracks
+            )
         }
     }
 
@@ -39,7 +57,7 @@ export const TrackList = () => {
     if (tracks.length === 0) {
         return (
             <div className="text-center py-6 bg-[#27272a]/20 rounded-xl border border-dashed border-zinc-800">
-                <p className="text-xs text-zinc-500">Треков пока нет</p>
+                <p className="text-xs text-zinc-500">{emptyMessage}</p>
             </div>
         )
     }
@@ -48,7 +66,6 @@ export const TrackList = () => {
         <>
             <div className="flex flex-col gap-4">
                 {tracks.map((track) => {
-                    // 4. Проверяем, играет ли трек, сравнивая с глобальным currentTrack
                     const isPlaying = currentTrack?._id === track._id
                     const coverSrc = track.coverUrl
                         ? track.coverUrl.startsWith('http')
@@ -66,7 +83,7 @@ export const TrackList = () => {
                             {/* Главная кнопка воспроизведения */}
                             <button
                                 type="button"
-                                onClick={() => togglePlay(track)} // Передаем сам трек!
+                                onClick={() => togglePlay(track)}
                                 className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 transition-all shadow-md active:scale-95 cursor-pointer ${
                                     isPlaying
                                         ? 'bg-indigo-500 text-white'
@@ -86,37 +103,40 @@ export const TrackList = () => {
                                     <img
                                         src={coverSrc}
                                         alt={track.title}
-                                        className="w-8 h-8 rounded object-cover shrink-0"
+                                        className="w-full h-full object-cover"
                                         onError={(e) => {
-                                            // Если картинка не загрузилась — скрываем или ставим дефолтную SVG/иконку
                                             (e.target as HTMLImageElement).src = '/default-cover.png'
                                         }}
-                                        // className="w-full h-full object-cover"
                                     />
                                 ) : (
                                     <span className="text-zinc-500 text-xl">🎵</span>
                                 )}
                             </div>
 
-                            {/* Название */}
+                            {/* Инфо и автор */}
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <span
-                                    onClick={() => setSelectedTrackId(track._id)}
-                                    className={`text-lg font-bold truncate cursor-pointer transition-colors inline-block ${
-                                        isPlaying ? 'text-indigo-400' : 'text-zinc-100 hover:text-indigo-400'
-                                    }`}
-                                    title="Нажмите для редактирования"
+                                    onClick={() => enableActions && setSelectedTrackId(track._id)}
+                                    className={`text-lg font-bold truncate transition-colors inline-block ${
+                                        enableActions ? 'cursor-pointer hover:text-indigo-400' : ''
+                                    } ${isPlaying ? 'text-indigo-400' : 'text-zinc-100'}`}
+                                    title={enableActions ? 'Нажмите для редактирования' : undefined}
                                 >
                                     {track.title}
                                 </span>
+                                {showAuthor && track.authorEmail && (
+                                    <span className="text-xs text-zinc-400 truncate mt-0.5">
+                                        {track.authorEmail}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     )
                 })}
             </div>
 
-            {/* Модалка действий */}
-            {selectedTrack && (
+            {/* Модалка действий только для своих треков */}
+            {enableActions && selectedTrack && (
                 <TrackActionsModal
                     trackId={selectedTrack._id}
                     title={selectedTrack.title}

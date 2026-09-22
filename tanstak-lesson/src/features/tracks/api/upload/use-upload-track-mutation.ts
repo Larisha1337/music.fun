@@ -58,6 +58,8 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-tracks'] })
+            queryClient.invalidateQueries({ queryKey: ['all-tracks'] })
+
             onSuccess?.()
         }
     })

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { localStorageKey } from '../../../../shared/config/local-storage-key.ts'
 
-const API_BASE = 'http://localhost:5000/api'
+const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
 export const useUploadTrackCoverMutation = () => {
     const queryClient = useQueryClient()
@@ -12,18 +12,19 @@ export const useUploadTrackCoverMutation = () => {
             const body = new FormData()
             body.append('cover', cover)
 
-            const response = await fetch(`${API_BASE}/tracks/${trackId}/cover`, {
+            const response = await fetch(`${MY_API_BASE}/api/tracks/${trackId}/cover`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },
-                body: body
+                body
             })
 
             if (!response.ok) throw new Error('Ошибка загрузки обложки')
             return response.json()
         },
         onSuccess: () => {
-            // Обязательно сбрасываем кэш треков
+            // Инвалидируем оба списка, чтобы обложка обновилась везде
             queryClient.invalidateQueries({ queryKey: ['my-tracks'] })
+            queryClient.invalidateQueries({ queryKey: ['all-tracks'] })
         }
     })
 }

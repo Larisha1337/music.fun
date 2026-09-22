@@ -1,4 +1,4 @@
-import { GlobalTrackList } from "../features/tracks/public/ui/global-track-list.tsx";
+import { GlobalTrackList } from "../features/tracks/ui/global-track-list.tsx";
 
 const AllTracksPage = () => {
     return (

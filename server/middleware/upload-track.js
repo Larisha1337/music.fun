@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
 
 const uploadTrack = multer({
     storage,
-    limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB - хватает на полноценную песню
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
     fileFilter: (req, file, cb) => {
         const isMp3 = file.mimetype === 'audio/mpeg' || file.originalname.toLowerCase().endsWith('.mp3')
         if (isMp3) {
