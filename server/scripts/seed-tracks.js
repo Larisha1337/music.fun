@@ -5,18 +5,20 @@ import path from 'path'
 import https from 'https'
 import Track from '../models/Track.js'
 
-const JAMENDO_CLIENT_ID = "79ba8ce8"
 const SEED_USER_ID = "6ab06b70f4d69ec4ddf8b73d"
-const TRACKS_COUNT = 20 // сколько треков затащить за один запуск
-
 const uploadDir = 'uploads/tracks'
 const coverDir = 'uploads/track-covers'
+
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 if (!fs.existsSync(coverDir)) fs.mkdirSync(coverDir, { recursive: true })
 
 const downloadFile = (url, filePath) => {
     return new Promise((resolve, reject) => {
         https.get(url, (response) => {
+            // Deezer иногда делает редирект (302)
+            if (response.statusCode === 301 || response.statusCode === 302) {
+                return downloadFile(response.headers.location, filePath).then(resolve).catch(reject)
+            }
             if (response.statusCode !== 200) {
                 reject(new Error(`Статус ${response.statusCode} для ${url}`))
                 return
@@ -32,47 +34,51 @@ const downloadFile = (url, filePath) => {
 }
 
 const run = async () => {
-    if (!JAMENDO_CLIENT_ID || !SEED_USER_ID) {
-        console.error('Нужны JAMENDO_CLIENT_ID и SEED_USER_ID в .env')
+    if (!SEED_USER_ID) {
+        console.error('Необходим SEED_USER_ID в .env')
         process.exit(1)
     }
 
     await mongoose.connect(process.env.MONGO_URI)
     console.log('MongoDB подключена')
 
-    const url = `https://api.jamendo.com/v3.0/tracks/?client_id=${JAMENDO_CLIENT_ID}&format=json&limit=${TRACKS_COUNT}&audiodownload_allowed=true`
-
-    const response = await fetch(url)
+    // Запрашиваем текущий топ-чарт Deezer (50 популярных треков)
+    const response = await fetch('https://api.deezer.com/chart/0/tracks?limit=30')
     const data = await response.json()
-    const tracks = data.results
+    const tracks = data.data
 
-    console.log(`Найдено ${tracks.length} треков от Jamendo`)
+    console.log(`Найдено ${tracks.length} треков из чартов Deezer`)
 
     for (const t of tracks) {
         try {
+            if (!t.preview) continue // Пропускаем, если нет MP3 превью
+
             const audioFileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.mp3`
             const audioPath = path.join(uploadDir, audioFileName)
-            await downloadFile(t.audiodownload, audioPath)
+
+            // Скачиваем 30-секундный MP3 файл
+            await downloadFile(t.preview, audioPath)
 
             let coverUrl = null
-            if (t.image) {
+            const imageUrl = t.album?.cover_medium || t.artist?.picture_medium
+            if (imageUrl) {
                 const coverFileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`
                 const coverPath = path.join(coverDir, coverFileName)
-                await downloadFile(t.image, coverPath)
+                await downloadFile(imageUrl, coverPath)
                 coverUrl = `/uploads/track-covers/${coverFileName}`
             }
 
             await Track.create({
                 userId: SEED_USER_ID,
-                title: `${t.name} — ${t.artist_name}`,
+                title: `${t.title} — ${t.artist.name}`,
                 fileUrl: `/uploads/tracks/${audioFileName}`,
                 coverUrl,
                 fileSize: fs.statSync(audioPath).size
             })
 
-            console.log(`✓ Загружен: ${t.name} — ${t.artist_name}`)
+            console.log(`✓ Загружен: ${t.title} — ${t.artist.name}`)
         } catch (error) {
-            console.error(`✗ Не удалось загрузить "${t.name}":`, error.message)
+            console.error(`✗ Ошибка загрузки "${t.title}":`, error.message)
         }
     }
 

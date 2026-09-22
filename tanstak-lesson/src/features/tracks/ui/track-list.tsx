@@ -86,7 +86,12 @@ export const TrackList = () => {
                                     <img
                                         src={coverSrc}
                                         alt={track.title}
-                                        className="w-full h-full object-cover"
+                                        className="w-8 h-8 rounded object-cover shrink-0"
+                                        onError={(e) => {
+                                            // Если картинка не загрузилась — скрываем или ставим дефолтную SVG/иконку
+                                            (e.target as HTMLImageElement).src = '/default-cover.png'
+                                        }}
+                                        // className="w-full h-full object-cover"
                                     />
                                 ) : (
                                     <span className="text-zinc-500 text-xl">🎵</span>

@@ -9,15 +9,37 @@ import User from '../models/User.js'
 
 const router = express.Router()
 
+// 1. Глобальная лента (автоочистка битых MP3 и обложек)
 router.get('/', async (req, res) => {
     try {
         const tracks = await Track.find().sort({ createdAt: -1 }).lean()
+        const validTracks = []
 
-        const userIds = [...new Set(tracks.map(t => t.userId))]
+        for (const track of tracks) {
+            const filePath = path.join(process.cwd(), track.fileUrl)
+
+            if (fs.existsSync(filePath)) {
+                // Если MP3 на месте, проверяем обложку. Если обложку удалили — сбрасываем её в null
+                if (track.coverUrl) {
+                    const coverPath = path.join(process.cwd(), track.coverUrl)
+                    if (!fs.existsSync(coverPath)) {
+                        await Track.updateOne({ _id: track._id }, { coverUrl: null })
+                        track.coverUrl = null
+                    }
+                }
+                validTracks.push(track)
+            } else {
+                // MP3 файла нет — удаляем трек из базы
+                await Track.deleteOne({ _id: track._id })
+                console.log(`[Auto-Clean] Удален битый трек из БД: ${track.title}`)
+            }
+        }
+
+        const userIds = [...new Set(validTracks.map(t => t.userId))]
         const users = await User.find({ _id: { $in: userIds } }).select('email').lean()
         const emailById = Object.fromEntries(users.map(u => [u._id.toString(), u.email]))
 
-        const tracksWithAuthor = tracks.map(t => ({
+        const tracksWithAuthor = validTracks.map(t => ({
             ...t,
             authorEmail: emailById[t.userId] ?? 'Unknown'
         }))
@@ -29,6 +51,36 @@ router.get('/', async (req, res) => {
     }
 })
 
+// 2. Мои треки (тоже с авточисткой)
+router.get('/my', authMiddleware, async (req, res) => {
+    try {
+        const tracks = await Track.find({ userId: req.userId }).sort({ createdAt: -1 }).lean()
+        const validTracks = []
+
+        for (const track of tracks) {
+            const filePath = path.join(process.cwd(), track.fileUrl)
+            if (fs.existsSync(filePath)) {
+                if (track.coverUrl) {
+                    const coverPath = path.join(process.cwd(), track.coverUrl)
+                    if (!fs.existsSync(coverPath)) {
+                        await Track.updateOne({ _id: track._id }, { coverUrl: null })
+                        track.coverUrl = null
+                    }
+                }
+                validTracks.push(track)
+            } else {
+                await Track.deleteOne({ _id: track._id })
+            }
+        }
+
+        res.json({ tracks: validTracks })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Ошибка получения треков' })
+    }
+})
+
+// 3. Загрузить новый трек
 router.post('/', authMiddleware, uploadTrack.single('file'), async (req, res) => {
     try {
         if (!req.file) {
@@ -51,6 +103,7 @@ router.post('/', authMiddleware, uploadTrack.single('file'), async (req, res) =>
     }
 })
 
+// 4. Обновить название
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
         const track = await Track.findOneAndUpdate(
@@ -70,7 +123,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 })
 
-// Загрузить/заменить обложку трека
+// 5. Загрузить/заменить обложку
 router.post('/:id/cover', authMiddleware, uploadTrackCover.single('cover'), async (req, res) => {
     try {
         if (!req.file) {
@@ -83,10 +136,8 @@ router.post('/:id/cover', authMiddleware, uploadTrackCover.single('cover'), asyn
         }
 
         if (track.coverUrl) {
-            const oldPath = path.join('uploads/track-covers', path.basename(track.coverUrl))
-            fs.unlink(oldPath, (err) => {
-                if (err) console.error('Не удалось удалить старую обложку:', err)
-            })
+            const oldPath = path.join(process.cwd(), track.coverUrl)
+            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath)
         }
 
         track.coverUrl = `/uploads/track-covers/${req.file.filename}`
@@ -99,7 +150,7 @@ router.post('/:id/cover', authMiddleware, uploadTrackCover.single('cover'), asyn
     }
 })
 
-// Удалить обложку трека
+// 6. Удалить обложку
 router.delete('/:id/cover', authMiddleware, async (req, res) => {
     try {
         const track = await Track.findOne({ _id: req.params.id, userId: req.userId })
@@ -108,10 +159,8 @@ router.delete('/:id/cover', authMiddleware, async (req, res) => {
         }
 
         if (track.coverUrl) {
-            const filePath = path.join('uploads/track-covers', path.basename(track.coverUrl))
-            fs.unlink(filePath, (err) => {
-                if (err) console.error('Не удалось удалить файл обложки:', err)
-            })
+            const filePath = path.join(process.cwd(), track.coverUrl)
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
         }
 
         track.coverUrl = null
@@ -124,17 +173,7 @@ router.delete('/:id/cover', authMiddleware, async (req, res) => {
     }
 })
 
-router.get('/my', authMiddleware, async (req, res) => {
-    try {
-        const tracks = await Track.find({ userId: req.userId }).sort({ createdAt: -1 })
-        res.json({ tracks })
-    } catch (error) {
-        console.error(error)
-        res.status(500).json({ message: 'Ошибка получения треков' })
-    }
-})
-
-// Заменить аудиофайл трека
+// 7. Заменить аудиофайл
 router.put('/:id/file', authMiddleware, uploadTrack.single('file'), async (req, res) => {
     try {
         if (!req.file) {
@@ -146,12 +185,9 @@ router.put('/:id/file', authMiddleware, uploadTrack.single('file'), async (req, 
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        // Удаляем старый файл
         if (track.fileUrl) {
-            const oldPath = path.join('uploads/tracks', path.basename(track.fileUrl))
-            fs.unlink(oldPath, (err) => {
-                if (err) console.error('Не удалось удалить старый аудиофайл:', err)
-            })
+            const oldPath = path.join(process.cwd(), track.fileUrl)
+            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath)
         }
 
         track.fileUrl = `/uploads/tracks/${req.file.filename}`
@@ -165,6 +201,7 @@ router.put('/:id/file', authMiddleware, uploadTrack.single('file'), async (req, 
     }
 })
 
+// 8. Удалить трек целиком
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
         const track = await Track.findOne({ _id: req.params.id, userId: req.userId })
@@ -172,16 +209,14 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        const filePath = path.join('uploads/tracks', path.basename(track.fileUrl))
-        fs.unlink(filePath, (err) => {
-            if (err) console.error('Не удалось удалить файл:', err)
-        })
+        if (track.fileUrl) {
+            const filePath = path.join(process.cwd(), track.fileUrl)
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+        }
 
         if (track.coverUrl) {
-            const coverPath = path.join('uploads/track-covers', path.basename(track.coverUrl))
-            fs.unlink(coverPath, (err) => {
-                if (err) console.error('Не удалось удалить файл обложки:', err)
-            })
+            const coverPath = path.join(process.cwd(), track.coverUrl)
+            if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath)
         }
 
         await track.deleteOne()
