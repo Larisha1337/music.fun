@@ -25,8 +25,6 @@ export const GlobalPlayer = () => {
     const audioSrc = getMediaUrl(currentTrack.fileUrl);
     if (!audioSrc) return null;
 
-    const trackId = currentTrack._id || currentTrack.id || currentTrack.title;
-
     return (
         <>
             {/* Основной плеер на странице (отображается, когда PiP закрыт) */}
@@ -78,7 +76,6 @@ export const GlobalPlayer = () => {
                             {/* Кастомный аудио плеер */}
                             <div className="flex-1 w-full">
                                 <CustomAudioPlayer
-                                    key={trackId}
                                     src={audioSrc}
                                     title={currentTrack.title}
                                     coverSrc={coverSrc}
@@ -196,7 +193,6 @@ export const GlobalPlayer = () => {
                         {/* Элементы управления плеером в PiP */}
                         <div className="z-10 w-full">
                             <CustomAudioPlayer
-                                key={trackId}
                                 src={audioSrc}
                                 title={currentTrack.title}
                                 coverSrc={coverSrc}
