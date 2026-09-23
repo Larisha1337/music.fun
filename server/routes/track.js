@@ -1,7 +1,6 @@
 import express from 'express'
 import authMiddleware from '../middleware/auth.js'
-import uploadTrack from '../middleware/upload-track.js'
-import uploadTrackCover from '../middleware/upload-track-cover.js'
+import { uploadTrack, uploadTrackCover } from '../middleware/upload.js'
 
 import {
     getAllTracks,

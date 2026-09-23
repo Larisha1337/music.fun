@@ -1,7 +1,7 @@
 import express from 'express'
 import fs from 'fs'
 import path from 'path'
-import upload from '../middleware/upload.js'
+import { uploadAvatar } from '../middleware/upload.js'
 import authMiddleware from '../middleware/auth.js'
 import Avatar from '../models/Avatar.js'
 import User from '../models/User.js' // <-- Добавили импорт модели юзера
@@ -9,7 +9,7 @@ import User from '../models/User.js' // <-- Добавили импорт мод
 const router = express.Router()
 
 // 1. Загрузка аватарки
-router.post('/avatar', authMiddleware, upload.single('avatar'), async (req, res) => {
+router.post('/avatar', authMiddleware, uploadAvatar.single('avatar'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'Файл не загружен' })

@@ -1,25 +1,11 @@
 import multer from 'multer'
-import path from 'path'
-import fs from 'fs'
 
-const uploadDir = 'uploads/avatars'
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true })
-}
+const storage = multer.memoryStorage()
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir)
-    },
-    filename: (req, file, cb) => {
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9)
-        cb(null, uniqueName + path.extname(file.originalname))
-    }
-})
-
-const upload = multer({
+// 1. Аватарка (до 5 МБ)
+export const uploadAvatar = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // максимум 5MB
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/')) {
             cb(null, true)
@@ -29,4 +15,29 @@ const upload = multer({
     }
 })
 
-export default upload
+// 2. Трек (до 50 МБ)
+export const uploadTrack = multer({
+    storage,
+    limits: { fileSize: 50 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const isMp3 = file.mimetype === 'audio/mpeg' || file.originalname.toLowerCase().endsWith('.mp3')
+        if (isMp3) {
+            cb(null, true)
+        } else {
+            cb(new Error('Можно загружать только mp3'))
+        }
+    }
+})
+
+// 3. Обложка трека (до 5 МБ)
+export const uploadTrackCover = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true)
+        } else {
+            cb(new Error('Можно загружать только изображения'))
+        }
+    }
+})

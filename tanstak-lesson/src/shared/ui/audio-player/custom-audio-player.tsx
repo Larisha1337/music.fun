@@ -59,6 +59,8 @@ export const CustomAudioPlayer = ({
 
         const wasPlaying = localStorage.getItem('player-was-playing') !== 'false';
 
+        let handleUserInteraction: (() => void) | null = null;
+
         const initAudio = () => {
             setDuration(audio.duration || 0);
 
@@ -80,14 +82,16 @@ export const CustomAudioPlayer = ({
                         setIsPlaying(false);
                         setIsBuffering(false);
 
-                        const handleUserInteraction = () => {
+                        handleUserInteraction = () => {
                             audio.play().then(() => {
                                 setIsPlaying(true);
                                 localStorage.setItem('player-was-playing', 'true');
                             }).catch(() => {});
 
-                            window.removeEventListener('click', handleUserInteraction);
-                            window.removeEventListener('keydown', handleUserInteraction);
+                            if (handleUserInteraction) {
+                                window.removeEventListener('click', handleUserInteraction);
+                                window.removeEventListener('keydown', handleUserInteraction);
+                            }
                         };
 
                         window.addEventListener('click', handleUserInteraction, { once: true });
@@ -106,6 +110,10 @@ export const CustomAudioPlayer = ({
 
         return () => {
             audio.removeEventListener('loadedmetadata', initAudio);
+            if (handleUserInteraction) {
+                window.removeEventListener('click', handleUserInteraction);
+                window.removeEventListener('keydown', handleUserInteraction);
+            }
         };
     }, [src, autoPlay]);
 
@@ -246,6 +254,7 @@ export const CustomAudioPlayer = ({
             <audio
                 ref={audioRef}
                 src={src}
+                crossOrigin="anonymous" // 👈 КЛЮЧЕВАЯ СТРОКА ДЛЯ РАБОТЫ R2 С CANVAS/AUDIOVISUALIZER
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={handleEndedTrack}
                 onWaiting={() => setIsBuffering(true)}

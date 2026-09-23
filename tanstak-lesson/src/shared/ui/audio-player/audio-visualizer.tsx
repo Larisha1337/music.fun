@@ -11,40 +11,52 @@ export const AudioVisualizer = ({ audioRef, isPlaying, color = "#6366f1" }: Prop
     const animationFrameRef = useRef<number | null>(null);
     const audioCtxRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
+    const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
-    // 1. Инициализация AudioContext и AnalyserNode
+    // 1. Инициализация Web Audio API
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
 
-        // MediaElementAudioSourceNode создается ровно 1 раз для одного <audio> тега
+        // Включаем CORS-режим на уровне элемента
+        if (audio.crossOrigin !== "anonymous") {
+            audio.crossOrigin = "anonymous";
+        }
+
+        // Подключаем AnalyserNode к <audio>
         if (!audioCtxRef.current) {
             const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
             const ctx = new AudioContextClass();
             const analyser = ctx.createAnalyser();
-            analyser.fftSize = 64; // Разрешение спектра (32 частотные полосы)
+            analyser.fftSize = 64; // 32 частотные полосы
 
             try {
-                // Добавляем атрибут crossorigin для поддержки Web Audio API
-                audio.crossOrigin = "anonymous";
-                const source = ctx.createMediaElementSource(audio);
-                source.connect(analyser);
-                analyser.connect(ctx.destination);
+                // MediaElementSource можно создать только один раз для одного элемента <audio>
+                if (!sourceRef.current) {
+                    const source = ctx.createMediaElementSource(audio);
+                    source.connect(analyser);
+                    analyser.connect(ctx.destination);
+                    sourceRef.current = source;
+                }
 
                 audioCtxRef.current = ctx;
                 analyserRef.current = analyser;
             } catch (e) {
-                console.warn("AudioContext init error (CORS or re-init):", e);
+                console.warn("[AudioVisualizer] Ошибка инициализации AudioContext:", e);
             }
         }
+    }, [audioRef]);
 
-        // Браузеры блокируют незапрошенный звук: возобновляем контекст при play
+    // 2. Возобновление AudioContext при воспроизведении
+    useEffect(() => {
         if (isPlaying && audioCtxRef.current?.state === "suspended") {
-            audioCtxRef.current.resume();
+            audioCtxRef.current.resume().catch((err) => {
+                console.warn("[AudioVisualizer] Не удалось возобновить AudioContext:", err);
+            });
         }
-    }, [audioRef, isPlaying]);
+    }, [isPlaying]);
 
-    // 2. Анимационный цикл отрисовки на Canvas
+    // 3. Анимационный цикл Canvas
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -62,12 +74,16 @@ export const AudioVisualizer = ({ audioRef, isPlaying, color = "#6366f1" }: Prop
             const gap = 2;
             const barWidth = (width - gap * (barCount - 1)) / barCount;
 
-            // Если пауза или контекст не готов — рисуем минимальные точки
-            if (!analyserRef.current || !isPlaying) {
+            // Если пауза или контекст не готов — рисуем минимальные плашки
+            if (!analyserRef.current || !isPlaying || audioCtxRef.current?.state === "suspended") {
                 ctx.fillStyle = `${color}50`;
                 for (let i = 0; i < barCount; i++) {
                     ctx.beginPath();
-                    ctx.roundRect(i * (barWidth + gap), height - 3, barWidth, 3, 1);
+                    if (ctx.roundRect) {
+                        ctx.roundRect(i * (barWidth + gap), height - 3, barWidth, 3, 1);
+                    } else {
+                        ctx.rect(i * (barWidth + gap), height - 3, barWidth, 3);
+                    }
                     ctx.fill();
                 }
                 return;
@@ -78,21 +94,24 @@ export const AudioVisualizer = ({ audioRef, isPlaying, color = "#6366f1" }: Prop
             analyserRef.current.getByteFrequencyData(dataArray);
 
             for (let i = 0; i < barCount; i++) {
-                // Извлекаем значение частоты для столбика
-                const value = dataArray[i * 2] || 0;
+                // Пропускаем самые низкие/высокие частоты для более красивого спектра
+                const value = dataArray[i + 1] || 0;
                 const percent = value / 255;
                 const barHeight = Math.max(3, percent * height);
 
                 ctx.fillStyle = color;
                 ctx.beginPath();
-                // Закруглённые сверху столбики
-                ctx.roundRect(
-                    i * (barWidth + gap),
-                    height - barHeight,
-                    barWidth,
-                    barHeight,
-                    [2, 2, 0, 0]
-                );
+                if (ctx.roundRect) {
+                    ctx.roundRect(
+                        i * (barWidth + gap),
+                        height - barHeight,
+                        barWidth,
+                        barHeight,
+                        [2, 2, 0, 0]
+                    );
+                } else {
+                    ctx.rect(i * (barWidth + gap), height - barHeight, barWidth, barHeight);
+                }
                 ctx.fill();
             }
         };

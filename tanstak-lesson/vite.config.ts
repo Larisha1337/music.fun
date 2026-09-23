@@ -21,4 +21,14 @@ export default defineConfig({
     // 4. Встроенная поддержка tsconfig paths (заменяет vite-tsconfig-paths)
     tsconfigPaths: true,
   },
+  // 🔽 ДОБАВЛЯЕМ СЕКЦИЮ SERVER ДЛЯ ПРОКСИРОВАНИЯ R2
+  server: {
+    proxy: {
+      '/r2-proxy': {
+        target: 'https://pub-3387ec0d355d404daf0dcee5485caf3e.r2.dev',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/r2-proxy/, ''),
+      },
+    },
+  },
 })

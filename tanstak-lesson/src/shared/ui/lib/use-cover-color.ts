@@ -14,14 +14,22 @@ export const useCoverColor = (coverSrc: string | null, defaultColor = '#6366f1')
 
         let isMounted = true;
 
-        fac.getColorAsync(coverSrc, { crossOrigin: 'anonymous' })
+        // 🔽 1. ВСТАВЛЯЕМ ПОДМЕНУ URL ЗДЕСЬ
+        // Превращаем https://pub-...r2.dev/track-covers/... в /r2-proxy/track-covers/...
+        const targetUrl = coverSrc.replace(
+            'https://pub-3387ec0d355d404daf0dcee5485caf3e.r2.dev',
+            '/r2-proxy'
+        );
+
+        // 🔽 2. Передаем targetUrl
+        // { crossOrigin: 'anonymous' } больше не нужен, так как для браузера это теперь запрос к http://localhost:5173
+        fac.getColorAsync(targetUrl)
             .then((res) => {
                 if (isMounted) {
                     setColor(res.hex);
                 }
             })
             .catch(() => {
-                // Если сработал CORS или обложка не загрузилась — ставим дефолтный цвет
                 if (isMounted) setColor(defaultColor);
             });
 

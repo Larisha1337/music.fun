@@ -1,54 +1,25 @@
-import fs from 'fs'
-import path from 'path'
 import Track from '../models/Track.js'
 import User from '../models/User.js'
+import { uploadToR2, deleteFromR2 } from '../service/r2.js'
 
-// 1. Глобальная лента (с автоочисткой и авторами)
+// 1. Глобальная лента (с авторами)
 export const getAllTracks = async (req, res) => {
     try {
         const tracks = await Track.find().sort({ createdAt: -1 }).lean()
-        const validTracks = []
-
-        for (const track of tracks) {
-            if (!track.fileUrl) {
-                await Track.deleteOne({ _id: track._id })
-                continue
-            }
-
-            const cleanRelativePath = track.fileUrl.replace(/^\//, '')
-            const filePath = path.join(process.cwd(), cleanRelativePath)
-
-            if (fs.existsSync(filePath)) {
-                if (track.coverUrl) {
-                    const cleanCoverPath = track.coverUrl.replace(/^\//, '')
-                    const coverPath = path.join(process.cwd(), cleanCoverPath)
-                    if (!fs.existsSync(coverPath)) {
-                        await Track.updateOne({ _id: track._id }, { coverUrl: null })
-                        track.coverUrl = null
-                    }
-                }
-                validTracks.push(track)
-            } else {
-                await Track.deleteOne({ _id: track._id })
-                console.log(`[Auto-Clean] Удален битый трек из БД: ${track.title}`)
-            }
-        }
 
         const userIds = [...new Set(
-            validTracks
+            tracks
                 .filter(t => t.userId && t.userId !== 'system')
                 .map(t => t.userId.toString())
         )]
 
-        // 1. Добавляем 'name' в выборку полей юзера
         const users = await User.find({ _id: { $in: userIds } }).select('email name').lean()
 
-        // 2. Берем u.name, а если его нет — fallback на u.email
         const authorById = Object.fromEntries(
             users.map(u => [u._id.toString(), u.name || u.email])
         )
 
-        const tracksWithAuthor = validTracks.map(t => ({
+        const tracksWithAuthor = tracks.map(t => ({
             ...t,
             authorEmail: t.userId && authorById[t.userId.toString()]
                 ? authorById[t.userId.toString()]
@@ -76,34 +47,7 @@ export const getMyTracks = async (req, res) => {
             isSeed: { $ne: true }
         }).sort({ createdAt: -1 }).lean()
 
-        const validTracks = []
-
-        for (const track of tracks) {
-            if (!track.fileUrl) {
-                await Track.deleteOne({ _id: track._id })
-                continue
-            }
-
-            const cleanRelativePath = track.fileUrl.replace(/^\//, '')
-            const filePath = path.join(process.cwd(), cleanRelativePath)
-
-            if (fs.existsSync(filePath)) {
-                if (track.coverUrl) {
-                    const cleanCoverPath = track.coverUrl.replace(/^\//, '')
-                    const coverPath = path.join(process.cwd(), cleanCoverPath)
-                    if (!fs.existsSync(coverPath)) {
-                        await Track.updateOne({ _id: track._id }, { coverUrl: null })
-                        track.coverUrl = null
-                    }
-                }
-                validTracks.push(track)
-            } else {
-                console.warn(`[Auto-Clean] Файл не найден на диске: ${filePath}`)
-                await Track.deleteOne({ _id: track._id })
-            }
-        }
-
-        res.json({ tracks: validTracks })
+        res.json({ tracks })
     } catch (error) {
         console.error('[CRASH /api/tracks/my]:', error)
         res.status(500).json({ message: 'Ошибка получения треков' })
@@ -122,7 +66,8 @@ export const createTrack = async (req, res) => {
             return res.status(401).json({ message: 'Не удалось определить ID пользователя' })
         }
 
-        const fileUrl = `/uploads/tracks/${req.file.filename}`
+        // Загружаем файл в R2 в папку 'tracks'
+        const fileUrl = await uploadToR2(req.file, 'tracks')
 
         const track = await Track.create({
             userId,
@@ -132,7 +77,7 @@ export const createTrack = async (req, res) => {
             isSeed: false
         })
 
-        console.log(`[Track Created] Трек "${track.title}" успешно загружен пользователем ${userId}`)
+        console.log(`[Track Created] Трек "${track.title}" загружен в R2 пользователем ${userId}`)
 
         res.status(201).json({ track })
     } catch (error) {
@@ -175,13 +120,13 @@ export const uploadCover = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
+        // Удаляем старую обложку из R2
         if (track.coverUrl) {
-            const cleanCoverPath = track.coverUrl.replace(/^\//, '')
-            const oldPath = path.join(process.cwd(), cleanCoverPath)
-            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath)
+            await deleteFromR2(track.coverUrl)
         }
 
-        track.coverUrl = `/uploads/track-covers/${req.file.filename}`
+        // Загружаем новую обложку в папку 'track-covers' в R2
+        track.coverUrl = await uploadToR2(req.file, 'track-covers')
         await track.save()
 
         res.json({ track })
@@ -201,9 +146,7 @@ export const deleteCover = async (req, res) => {
         }
 
         if (track.coverUrl) {
-            const cleanCoverPath = track.coverUrl.replace(/^\//, '')
-            const filePath = path.join(process.cwd(), cleanCoverPath)
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+            await deleteFromR2(track.coverUrl)
         }
 
         track.coverUrl = null
@@ -229,13 +172,13 @@ export const updateTrackFile = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
+        // Удаляем старый аудиофайл из R2
         if (track.fileUrl) {
-            const cleanFilePath = track.fileUrl.replace(/^\//, '')
-            const oldPath = path.join(process.cwd(), cleanFilePath)
-            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath)
+            await deleteFromR2(track.fileUrl)
         }
 
-        track.fileUrl = `/uploads/tracks/${req.file.filename}`
+        // Загружаем новый файл в R2
+        track.fileUrl = await uploadToR2(req.file, 'tracks')
         track.fileSize = req.file.size
         await track.save()
 
@@ -255,17 +198,9 @@ export const deleteTrack = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        if (track.fileUrl) {
-            const cleanFilePath = track.fileUrl.replace(/^\//, '')
-            const filePath = path.join(process.cwd(), cleanFilePath)
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
-        }
-
-        if (track.coverUrl) {
-            const cleanCoverPath = track.coverUrl.replace(/^\//, '')
-            const coverPath = path.join(process.cwd(), cleanCoverPath)
-            if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath)
-        }
+        // Удаляем аудиофайл и обложку из бакета R2
+        if (track.fileUrl) await deleteFromR2(track.fileUrl)
+        if (track.coverUrl) await deleteFromR2(track.coverUrl)
 
         await track.deleteOne()
         res.json({ message: 'Удалено' })
