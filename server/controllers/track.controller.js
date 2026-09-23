@@ -40,13 +40,18 @@ export const getAllTracks = async (req, res) => {
                 .map(t => t.userId.toString())
         )]
 
-        const users = await User.find({ _id: { $in: userIds } }).select('email').lean()
-        const emailById = Object.fromEntries(users.map(u => [u._id.toString(), u.email]))
+        // 1. Добавляем 'name' в выборку полей юзера
+        const users = await User.find({ _id: { $in: userIds } }).select('email name').lean()
+
+        // 2. Берем u.name, а если его нет — fallback на u.email
+        const authorById = Object.fromEntries(
+            users.map(u => [u._id.toString(), u.name || u.email])
+        )
 
         const tracksWithAuthor = validTracks.map(t => ({
             ...t,
-            authorEmail: t.userId && emailById[t.userId.toString()]
-                ? emailById[t.userId.toString()]
+            authorEmail: t.userId && authorById[t.userId.toString()]
+                ? authorById[t.userId.toString()]
                 : 'Deezer / Chart'
         }))
 

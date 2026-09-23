@@ -4,9 +4,11 @@ import path from 'path'
 import upload from '../middleware/upload.js'
 import authMiddleware from '../middleware/auth.js'
 import Avatar from '../models/Avatar.js'
+import User from '../models/User.js' // <-- Добавили импорт модели юзера
 
 const router = express.Router()
 
+// 1. Загрузка аватарки
 router.post('/avatar', authMiddleware, upload.single('avatar'), async (req, res) => {
     try {
         if (!req.file) {
@@ -15,13 +17,12 @@ router.post('/avatar', authMiddleware, upload.single('avatar'), async (req, res)
 
         const avatarUrl = `/uploads/avatars/${req.file.filename}`
 
-        // запоминаем старую аватарку до перезаписи, чтобы потом удалить файл с диска
         const existingAvatar = await Avatar.findOne({ userId: req.userId })
 
         const avatar = await Avatar.findOneAndUpdate(
             { userId: req.userId },
             { avatarUrl },
-            { upsert: true, new: true } // upsert - создать запись, если её ещё не было
+            { upsert: true, new: true }
         )
 
         if (existingAvatar?.avatarUrl) {
@@ -38,6 +39,7 @@ router.post('/avatar', authMiddleware, upload.single('avatar'), async (req, res)
     }
 })
 
+// 2. Получение аватарки
 router.get('/avatar', authMiddleware, async (req, res) => {
     try {
         const avatar = await Avatar.findOne({ userId: req.userId })
@@ -45,6 +47,32 @@ router.get('/avatar', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error(error)
         res.status(500).json({ message: 'Ошибка получения аватарки' })
+    }
+})
+
+// 3. Обновление ника (имени)
+router.patch('/profile', authMiddleware, async (req, res) => {
+    try {
+        const { name } = req.body
+
+        if (!name || !name.trim()) {
+            return res.status(400).json({ message: 'Имя не может быть пустым' })
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.userId,
+            { name: name.trim() },
+            { new: true }
+        ).select('-password')
+
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден' })
+        }
+
+        res.json({ user })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Ошибка при обновлении профиля' })
     }
 })
 
