@@ -23,3 +23,6 @@ routeTree.gen.ts
 *.njsproj
 *.sln
 *.sw?
+.env
+*.env
+**/.env
