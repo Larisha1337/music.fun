@@ -2,16 +2,42 @@ import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { AudioVisualizer } from "./audio-visualizer";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
 
+export type RepeatMode = 'off' | 'all' | 'one';
+
 type Props = {
     src: string;
     title?: string;
     coverSrc?: string | null;
     ambientColor?: string;
     autoPlay?: boolean;
+    repeatMode?: RepeatMode;
+    isShuffle?: boolean;
+    onToggleRepeat?: () => void;
+    onToggleShuffle?: () => void;
     onEnded?: () => void;
     onNext?: () => void;
     onPrev?: () => void;
 };
+
+// Иконки для Repeat / Shuffle
+const ShuffleIcon = ({ className }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+    </svg>
+);
+
+const RepeatIcon = ({ className }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+);
+
+const RepeatOneIcon = ({ className }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v6m-1-5l1-1" />
+    </svg>
+);
 
 export const CustomAudioPlayer = ({
                                       src,
@@ -19,6 +45,10 @@ export const CustomAudioPlayer = ({
                                       coverSrc,
                                       ambientColor = '#6366f1',
                                       autoPlay = true,
+                                      repeatMode = 'off',
+                                      isShuffle = false,
+                                      onToggleRepeat,
+                                      onToggleShuffle,
                                       onEnded,
                                       onNext,
                                       onPrev
@@ -38,7 +68,6 @@ export const CustomAudioPlayer = ({
         return localStorage.getItem('player-muted') === 'true';
     });
 
-    // Синхронизация громкости
     useEffect(() => {
         localStorage.setItem('player-volume', String(volume));
         localStorage.setItem('player-muted', String(isMuted));
@@ -48,7 +77,6 @@ export const CustomAudioPlayer = ({
         }
     }, [volume, isMuted]);
 
-    // Инициализация и запуск
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio || !src) return;
@@ -58,7 +86,6 @@ export const CustomAudioPlayer = ({
         setDuration(0);
 
         const wasPlaying = localStorage.getItem('player-was-playing') !== 'false';
-
         let handleUserInteraction: (() => void) | null = null;
 
         const initAudio = () => {
@@ -132,7 +159,6 @@ export const CustomAudioPlayer = ({
         }
     };
 
-    // Интеграция с Media Session API
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
 
@@ -176,13 +202,20 @@ export const CustomAudioPlayer = ({
         }
     };
 
+    // Обработка завершения трека
     const handleEndedTrack = () => {
+        // Если включен повтор ОДНОГО трека
+        if (repeatMode === 'one' && audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
+            return;
+        }
+
         localStorage.removeItem(`player-time-${src}`);
         localStorage.setItem('player-was-playing', 'true');
         if (onEnded) onEnded();
     };
 
-    // Горячие клавиши
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
@@ -254,7 +287,7 @@ export const CustomAudioPlayer = ({
             <audio
                 ref={audioRef}
                 src={src}
-                crossOrigin="anonymous" // 👈 КЛЮЧЕВАЯ СТРОКА ДЛЯ РАБОТЫ R2 С CANVAS/AUDIOVISUALIZER
+                crossOrigin="anonymous"
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={handleEndedTrack}
                 onWaiting={() => setIsBuffering(true)}
@@ -265,8 +298,24 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
-            {/* Элементы управления треком */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Панель управления треком */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                {/* Кнопка SHUFFLE */}
+                {onToggleShuffle && (
+                    <button
+                        onClick={onToggleShuffle}
+                        type="button"
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+                            isShuffle ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
+                        }`}
+                        title={isShuffle ? "Случайный порядок (Включен)" : "Случайный порядок (Выключен)"}
+                        aria-label="Случайный порядок"
+                    >
+                        <ShuffleIcon className="w-4 h-4" />
+                    </button>
+                )}
+
+                {/* Кнопка PREV */}
                 {onPrev && (
                     <button
                         onClick={onPrev}
@@ -279,6 +328,7 @@ export const CustomAudioPlayer = ({
                     </button>
                 )}
 
+                {/* Кнопка PLAY / PAUSE */}
                 <button
                     onClick={togglePlay}
                     type="button"
@@ -299,6 +349,7 @@ export const CustomAudioPlayer = ({
                     )}
                 </button>
 
+                {/* Кнопка NEXT */}
                 {onNext && (
                     <button
                         onClick={onNext}
@@ -308,6 +359,34 @@ export const CustomAudioPlayer = ({
                         aria-label="Следующий трек"
                     >
                         <NextIcon className="w-4 h-4" />
+                    </button>
+                )}
+
+                {/* Кнопка REPEAT */}
+                {onToggleRepeat && (
+                    <button
+                        onClick={onToggleRepeat}
+                        type="button"
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative ${
+                            repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
+                        }`}
+                        title={
+                            repeatMode === 'one'
+                                ? "Повтор текущего трека"
+                                : repeatMode === 'all'
+                                    ? "Повтор всей очереди"
+                                    : "Повтор выключен"
+                        }
+                        aria-label="Повтор"
+                    >
+                        {repeatMode === 'one' ? (
+                            <RepeatOneIcon className="w-4 h-4" />
+                        ) : (
+                            <RepeatIcon className="w-4 h-4" />
+                        )}
+                        {repeatMode === 'all' && (
+                            <span className="absolute bottom-1.5 w-1 h-1 bg-indigo-400 rounded-full" />
+                        )}
                     </button>
                 )}
             </div>

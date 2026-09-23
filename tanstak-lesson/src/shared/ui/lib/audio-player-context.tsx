@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
+export type RepeatMode = 'off' | 'all' | 'one';
+
 export type TrackInfo = {
     _id: string;
     id?: string;
@@ -12,9 +14,13 @@ export type TrackInfo = {
 type AudioPlayerContextType = {
     currentTrack: TrackInfo | null;
     playlist: TrackInfo[];
+    repeatMode: RepeatMode;
+    isShuffle: boolean;
     playTrack: (track: TrackInfo, playlist?: TrackInfo[]) => void;
     playNext: () => void;
     playPrev: () => void;
+    toggleRepeatMode: () => void;
+    toggleShuffle: () => void;
     closePlayer: () => void;
 };
 
@@ -27,11 +33,38 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         return savedTrack ? JSON.parse(savedTrack) : null;
     });
 
-    // 2. Восстанавливаем плейлист из localStorage (чтобы переключение работает и после F5)
+    // 2. Восстанавливаем плейлист из localStorage
     const [playlist, setPlaylist] = useState<TrackInfo[]>(() => {
         const savedPlaylist = localStorage.getItem('player-playlist');
         return savedPlaylist ? JSON.parse(savedPlaylist) : [];
     });
+
+    // 3. Восстанавливаем режим повтора из localStorage
+    const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
+        const savedMode = localStorage.getItem('player-repeat-mode');
+        return (savedMode as RepeatMode) || 'off';
+    });
+
+    // 4. Восстанавливаем режим перемешивания из localStorage
+    const [isShuffle, setIsShuffle] = useState<boolean>(() => {
+        return localStorage.getItem('player-shuffle') === 'true';
+    });
+
+    const toggleRepeatMode = () => {
+        setRepeatMode((prev) => {
+            const next: RepeatMode = prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off';
+            localStorage.setItem('player-repeat-mode', next);
+            return next;
+        });
+    };
+
+    const toggleShuffle = () => {
+        setIsShuffle((prev) => {
+            const next = !prev;
+            localStorage.setItem('player-shuffle', String(next));
+            return next;
+        });
+    };
 
     const playTrack = (track: TrackInfo, newPlaylist?: TrackInfo[]) => {
         setCurrentTrack(track);
@@ -46,6 +79,26 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
     // Переход к следующему треку
     const playNext = () => {
         if (!currentTrack || playlist.length === 0) return;
+
+        // Если включен перемешанный порядок (Shuffle)
+        if (isShuffle && playlist.length > 1) {
+            const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
+            let randomIndex = currentIndex;
+
+            // Выбираем случайный трек, отличный от текущего
+            while (randomIndex === currentIndex) {
+                randomIndex = Math.floor(Math.random() * playlist.length);
+            }
+
+            const nextTrack = playlist[randomIndex];
+            if (nextTrack) {
+                setCurrentTrack(nextTrack);
+                localStorage.setItem('player-current-track', JSON.stringify(nextTrack));
+            }
+            return;
+        }
+
+        // Обычный порядок воспроизведения
         const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
 
         if (currentIndex !== -1 && currentIndex < playlist.length - 1) {
@@ -54,8 +107,8 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
                 setCurrentTrack(nextTrack);
                 localStorage.setItem('player-current-track', JSON.stringify(nextTrack));
             }
-        } else {
-            // Зацикливаем на первый трек
+        } else if (repeatMode === 'all') {
+            // Переходим к первому треку только если включен повтор всего плейлиста ('all')
             const firstTrack = playlist[0];
             if (firstTrack) {
                 setCurrentTrack(firstTrack);
@@ -67,6 +120,23 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
     // Переход к предыдущему треку
     const playPrev = () => {
         if (!currentTrack || playlist.length === 0) return;
+
+        if (isShuffle && playlist.length > 1) {
+            const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
+            let randomIndex = currentIndex;
+
+            while (randomIndex === currentIndex) {
+                randomIndex = Math.floor(Math.random() * playlist.length);
+            }
+
+            const prevTrack = playlist[randomIndex];
+            if (prevTrack) {
+                setCurrentTrack(prevTrack);
+                localStorage.setItem('player-current-track', JSON.stringify(prevTrack));
+            }
+            return;
+        }
+
         const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
 
         if (currentIndex > 0) {
@@ -75,8 +145,7 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
                 setCurrentTrack(prevTrack);
                 localStorage.setItem('player-current-track', JSON.stringify(prevTrack));
             }
-        } else {
-            // Переходим на самый последний трек в списке
+        } else if (repeatMode === 'all') {
             const lastTrack = playlist[playlist.length - 1];
             if (lastTrack) {
                 setCurrentTrack(lastTrack);
@@ -94,7 +163,20 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <AudioPlayerContext.Provider value={{ currentTrack, playlist, playTrack, playNext, playPrev, closePlayer }}>
+        <AudioPlayerContext.Provider
+            value={{
+                currentTrack,
+                playlist,
+                repeatMode,
+                isShuffle,
+                playTrack,
+                playNext,
+                playPrev,
+                toggleRepeatMode,
+                toggleShuffle,
+                closePlayer,
+            }}
+        >
             {children}
         </AudioPlayerContext.Provider>
     );
