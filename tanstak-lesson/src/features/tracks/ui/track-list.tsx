@@ -21,11 +21,39 @@ interface TrackListProps {
     enableActions?: boolean // true для "Моих треков", false для "Глобальной ленты"
 }
 
+// Хелпер для безопасного парсинга названия и исполнителя
+const getTrackDisplayInfo = (track: Track) => {
+    let displayTitle = track.title
+    let displayArtist = track.artist?.trim()
+
+    if (!displayArtist) {
+        const separator = track.title.includes(' — ')
+            ? ' — '
+            : track.title.includes(' - ')
+                ? ' - '
+                : null
+
+        if (separator) {
+            const parts = track.title.split(separator)
+            const pTitle = parts[0]?.trim()
+            const pArtist = parts[1]?.trim()
+
+            if (pTitle) displayTitle = pTitle
+            if (pArtist) displayArtist = pArtist
+        }
+    }
+
+    return {
+        displayTitle,
+        displayArtist: displayArtist || track.authorEmail || 'Неизвестный исполнитель'
+    }
+}
+
 export const TrackList = ({
                               tracks = [],
                               isLoading,
                               emptyMessage = 'Треков пока нет',
-                              showAuthor = false,
+                              // showAuthor = false,
                               enableActions = false
                           }: TrackListProps) => {
     const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
@@ -37,11 +65,12 @@ export const TrackList = ({
         if (currentTrack?._id === track._id) {
             closePlayer()
         } else {
+            const { displayTitle, displayArtist } = getTrackDisplayInfo(track)
             playTrack(
                 {
                     _id: track._id,
-                    title: track.title,
-                    artist: track.artist || track.authorEmail || 'Неизвестный исполнитель',
+                    title: displayTitle,
+                    artist: displayArtist,
                     fileUrl: track.fileUrl,
                     coverUrl: track.coverUrl
                 },
@@ -67,6 +96,8 @@ export const TrackList = ({
             <div className="flex flex-col gap-4">
                 {tracks.map((track) => {
                     const isPlaying = currentTrack?._id === track._id
+                    const { displayTitle, displayArtist } = getTrackDisplayInfo(track)
+
                     const coverSrc = track.coverUrl
                         ? track.coverUrl.startsWith('http')
                             ? track.coverUrl
@@ -102,7 +133,7 @@ export const TrackList = ({
                                 {coverSrc ? (
                                     <img
                                         src={coverSrc}
-                                        alt={track.title}
+                                        alt={displayTitle}
                                         className="w-full h-full object-cover"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).src = '/default-cover.png'
@@ -122,13 +153,20 @@ export const TrackList = ({
                                     } ${isPlaying ? 'text-indigo-400' : 'text-zinc-100'}`}
                                     title={enableActions ? 'Нажмите для редактирования' : undefined}
                                 >
-                                    {track.title}
+                                    {displayTitle}
                                 </span>
-                                {showAuthor && track.authorEmail && (
-                                    <span className="text-xs text-zinc-400 truncate mt-0.5">
-                                        {track.authorEmail}
-                                    </span>
-                                )}
+
+                                {/* Исполнитель */}
+                                <span className="text-sm text-zinc-400 truncate">
+                                    {displayArtist}
+                                </span>
+
+                                {/*/!* Автор загрузки *!/*/}
+                                {/*{showAuthor && track.authorEmail && (*/}
+                                {/*    <span className="text-xs text-zinc-500 truncate mt-0.5">*/}
+                                {/*        Загрузил: {track.authorEmail}*/}
+                                {/*    </span>*/}
+                                {/*)}*/}
                             </div>
                         </div>
                     )

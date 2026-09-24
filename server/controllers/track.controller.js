@@ -33,7 +33,7 @@ export const getAllTracks = async (req, res) => {
     }
 }
 
-// 2. Мои треки (только пользователя, без isSeed: true)
+// 2. Мои треки (теперь тоже с authorEmail)
 export const getMyTracks = async (req, res) => {
     try {
         const userId = req.userId || req.user?.id
@@ -42,12 +42,22 @@ export const getMyTracks = async (req, res) => {
             return res.status(401).json({ message: 'Неавторизован: ID пользователя не найден' })
         }
 
-        const tracks = await Track.find({
-            userId: userId,
-            isSeed: { $ne: true }
-        }).sort({ createdAt: -1 }).lean()
+        const [tracks, user] = await Promise.all([
+            Track.find({
+                userId: userId,
+                isSeed: { $ne: true }
+            }).sort({ createdAt: -1 }).lean(),
+            User.findById(userId).select('email name').lean() // 👈 Достаем автора
+        ])
 
-        res.json({ tracks })
+        const authorName = user ? (user.name || user.email) : 'Неизвестный автор'
+
+        const tracksWithAuthor = tracks.map(t => ({
+            ...t,
+            authorEmail: authorName // 👈 Добавляем authorEmail во все треки
+        }))
+
+        res.json({ tracks: tracksWithAuthor })
     } catch (error) {
         console.error('[CRASH /api/tracks/my]:', error)
         res.status(500).json({ message: 'Ошибка получения треков' })
@@ -66,41 +76,58 @@ export const createTrack = async (req, res) => {
             return res.status(401).json({ message: 'Не удалось определить ID пользователя' })
         }
 
-        // Загружаем файл в R2 в папку 'tracks'
+        const user = await User.findById(userId).select('email name').lean()
         const fileUrl = await uploadToR2(req.file, 'tracks')
 
         const track = await Track.create({
             userId,
             title: req.body.title || req.file.originalname,
+            artist: req.body.artist || '',
             fileUrl,
             fileSize: req.file.size,
             isSeed: false
         })
 
-        console.log(`[Track Created] Трек "${track.title}" загружен в R2 пользователем ${userId}`)
+        const trackWithAuthor = {
+            ...track.toObject(),
+            authorEmail: user ? (user.name || user.email) : '' // 👈 Возвращаем authorEmail сразу клиенту
+        }
 
-        res.status(201).json({ track })
+        console.log(`[Track Created] Трек "${track.title}" (${track.artist}) загружен в R2 пользователем ${userId}`)
+
+        res.status(201).json({ track: trackWithAuthor })
     } catch (error) {
         console.error('[Create Track Error]:', error)
         res.status(500).json({ message: 'Ошибка при загрузке трека' })
     }
 }
 
-// 4. Обновить название
+// 4. Обновить название и исполнителя
 export const updateTrackTitle = async (req, res) => {
     try {
         const userId = req.userId || req.user?.id
+
+        const updateData = {}
+        if (req.body.title) updateData.title = req.body.title
+        if (req.body.artist !== undefined) updateData.artist = req.body.artist
+
         const track = await Track.findOneAndUpdate(
             { _id: req.params.id, userId },
-            { title: req.body.title },
+            updateData,
             { new: true }
-        )
+        ).lean()
 
         if (!track) {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        res.json({ track })
+        const user = await User.findById(userId).select('email name').lean()
+        const trackWithAuthor = {
+            ...track,
+            authorEmail: user ? (user.name || user.email) : ''
+        }
+
+        res.json({ track: trackWithAuthor })
     } catch (error) {
         console.error(error)
         res.status(500).json({ message: 'Ошибка обновления трека' })
@@ -120,12 +147,10 @@ export const uploadCover = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        // Удаляем старую обложку из R2
         if (track.coverUrl) {
             await deleteFromR2(track.coverUrl)
         }
 
-        // Загружаем новую обложку в папку 'track-covers' в R2
         track.coverUrl = await uploadToR2(req.file, 'track-covers')
         await track.save()
 
@@ -172,12 +197,10 @@ export const updateTrackFile = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        // Удаляем старый аудиофайл из R2
         if (track.fileUrl) {
             await deleteFromR2(track.fileUrl)
         }
 
-        // Загружаем новый файл в R2
         track.fileUrl = await uploadToR2(req.file, 'tracks')
         track.fileSize = req.file.size
         await track.save()
@@ -198,7 +221,6 @@ export const deleteTrack = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        // Удаляем аудиофайл и обложку из бакета R2
         if (track.fileUrl) await deleteFromR2(track.fileUrl)
         if (track.coverUrl) await deleteFromR2(track.coverUrl)
 

@@ -64,11 +64,12 @@ const run = async () => {
             // 👇 ВОТ ЗДЕСЬ ДОБАВЛЕН ФЛАГ isSeed: true
             await Track.create({
                 userId: SEED_USER_ID,
-                title: `${t.title} — ${t.artist.name}`,
+                title: t.title,
+                artist: t.artist.name,
                 fileUrl: `/uploads/tracks/${audioFileName}`,
                 coverUrl,
                 fileSize: fs.statSync(audioPath).size,
-                isSeed: true // 👈 ЖЕСТКО ПОМЕЧАЕМ КАК СИДОВЫЙ ТРЕК
+                isSeed: true
             })
 
             console.log(`✓ Загружен: ${t.title} — ${t.artist.name}`)

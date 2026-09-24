@@ -5,6 +5,7 @@ const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:500
 
 export type UploadTrackFormValues = {
     title: string;
+    artist?: string;
     file: FileList;
     cover?: FileList;
 }
@@ -20,6 +21,12 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
 
             const body = new FormData()
             body.append('title', formData.title)
+
+            // 💡 ВАЖНО: Отправляем артиста на сервер, если он заполнен
+            if (formData.artist?.trim()) {
+                body.append('artist', formData.artist.trim())
+            }
+
             body.append('file', file)
 
             const response = await fetch(`${MY_API_BASE}/api/tracks`, {
@@ -40,7 +47,7 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
             const coverFile = formData.cover?.[0]
             if (coverFile && trackId) {
                 const coverBody = new FormData()
-                coverBody.append('cover', coverFile) // Передаем 'coverFile' (TypeScript знает, что это File)
+                coverBody.append('cover', coverFile)
 
                 const coverResponse = await fetch(`${MY_API_BASE}/api/tracks/${trackId}/cover`, {
                     method: 'POST',

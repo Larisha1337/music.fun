@@ -9,6 +9,7 @@ export type TrackInfo = {
     artist?: string;
     fileUrl: string;
     coverUrl?: string | null;
+    authorEmail?: string; // 👈 Добавили authorEmail в тип
 };
 
 type AudioPlayerContextType = {
@@ -24,17 +25,48 @@ type AudioPlayerContextType = {
     closePlayer: () => void;
 };
 
+// 💡 Хелпер нормализации данных трека: если artist пустой, достаем из title или authorEmail
+const normalizeTrack = (track: TrackInfo): TrackInfo => {
+    let displayTitle = track.title;
+    let displayArtist = track.artist?.trim();
+
+    if (!displayArtist) {
+        const separator = track.title.includes(' — ')
+            ? ' — '
+            : track.title.includes(' - ')
+                ? ' - '
+                : null;
+
+        if (separator) {
+            const parts = track.title.split(separator);
+            const pTitle = parts[0]?.trim();
+            const pArtist = parts[1]?.trim();
+
+            if (pTitle) displayTitle = pTitle;
+            if (pArtist) displayArtist = pArtist;
+        }
+    }
+
+    return {
+        ...track,
+        title: displayTitle,
+        artist: displayArtist || track.authorEmail || 'Неизвестный исполнитель'
+    };
+};
+
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
 export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
     const [currentTrack, setCurrentTrack] = useState<TrackInfo | null>(() => {
         const savedTrack = localStorage.getItem('player-current-track');
-        return savedTrack ? JSON.parse(savedTrack) : null;
+        return savedTrack ? normalizeTrack(JSON.parse(savedTrack)) : null;
     });
 
     const [playlist, setPlaylist] = useState<TrackInfo[]>(() => {
         const savedPlaylist = localStorage.getItem('player-playlist');
-        return savedPlaylist ? JSON.parse(savedPlaylist) : [];
+        if (!savedPlaylist) return [];
+        const parsed: TrackInfo[] = JSON.parse(savedPlaylist);
+        return parsed.map(normalizeTrack);
     });
 
     const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
@@ -63,20 +95,23 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const playTrack = (track: TrackInfo, newPlaylist?: TrackInfo[]) => {
-        setCurrentTrack(track);
-        localStorage.setItem('player-current-track', JSON.stringify(track));
+        const formattedTrack = normalizeTrack(track);
+        setCurrentTrack(formattedTrack);
+        localStorage.setItem('player-current-track', JSON.stringify(formattedTrack));
 
         if (newPlaylist) {
-            setPlaylist(newPlaylist);
-            localStorage.setItem('player-playlist', JSON.stringify(newPlaylist));
+            const formattedPlaylist = newPlaylist.map(normalizeTrack);
+            setPlaylist(formattedPlaylist);
+            localStorage.setItem('player-playlist', JSON.stringify(formattedPlaylist));
         }
     };
 
-    // Переход к следующему треку (с зацикливанием с последнего на первый)
+    // Переход к следующему треку
     const playNext = () => {
         if (!currentTrack || playlist.length === 0) return;
 
         const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
+        let nextTrack: TrackInfo | undefined;
 
         // Режим случайного воспроизведения
         if (isShuffle && playlist.length > 1) {
@@ -84,29 +119,25 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
             while (randomIndex === currentIndex) {
                 randomIndex = Math.floor(Math.random() * playlist.length);
             }
-            const nextTrack = playlist[randomIndex];
-            if (nextTrack) {
-                setCurrentTrack(nextTrack);
-                localStorage.setItem('player-current-track', JSON.stringify(nextTrack));
-            }
-            return;
+            nextTrack = playlist[randomIndex];
+        } else {
+            const nextIndex = (currentIndex + 1) % playlist.length;
+            nextTrack = playlist[nextIndex];
         }
 
-        // Если это последний трек (currentIndex === playlist.length - 1), переходим на 0 (первый)
-        const nextIndex = (currentIndex + 1) % playlist.length;
-        const nextTrack = playlist[nextIndex];
-
         if (nextTrack) {
-            setCurrentTrack(nextTrack);
-            localStorage.setItem('player-current-track', JSON.stringify(nextTrack));
+            const formattedNext = normalizeTrack(nextTrack);
+            setCurrentTrack(formattedNext);
+            localStorage.setItem('player-current-track', JSON.stringify(formattedNext));
         }
     };
 
-    // Переход к предыдущему треку (с зацикливанием с первого на последний)
+    // Переход к предыдущему треку
     const playPrev = () => {
         if (!currentTrack || playlist.length === 0) return;
 
         const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
+        let prevTrack: TrackInfo | undefined;
 
         // Режим случайного воспроизведения
         if (isShuffle && playlist.length > 1) {
@@ -114,21 +145,16 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
             while (randomIndex === currentIndex) {
                 randomIndex = Math.floor(Math.random() * playlist.length);
             }
-            const prevTrack = playlist[randomIndex];
-            if (prevTrack) {
-                setCurrentTrack(prevTrack);
-                localStorage.setItem('player-current-track', JSON.stringify(prevTrack));
-            }
-            return;
+            prevTrack = playlist[randomIndex];
+        } else {
+            const prevIndex = currentIndex <= 0 ? playlist.length - 1 : currentIndex - 1;
+            prevTrack = playlist[prevIndex];
         }
 
-        // Если это первый трек (currentIndex <= 0), переходим на последний (playlist.length - 1)
-        const prevIndex = currentIndex <= 0 ? playlist.length - 1 : currentIndex - 1;
-        const prevTrack = playlist[prevIndex];
-
         if (prevTrack) {
-            setCurrentTrack(prevTrack);
-            localStorage.setItem('player-current-track', JSON.stringify(prevTrack));
+            const formattedPrev = normalizeTrack(prevTrack);
+            setCurrentTrack(formattedPrev);
+            localStorage.setItem('player-current-track', JSON.stringify(formattedPrev));
         }
     };
 

@@ -123,12 +123,13 @@ export const UploadTrackForm = ({ onSubmit, onCancel, isPending = false }: Props
                 </div>
             </div>
 
+            {/* Поле Названия */}
             <div className="space-y-2">
                 <label htmlFor="track-title" className="block text-base font-medium text-zinc-300 text-center mb-2">
-                    Название
+                    Название трека
                 </label>
                 <input
-                    {...register('title', { required: true })}
+                    {...register('title', { required: 'Введите название трека' })}
                     id="track-title"
                     type="text"
                     disabled={isLoading}
@@ -137,6 +138,22 @@ export const UploadTrackForm = ({ onSubmit, onCancel, isPending = false }: Props
                 />
             </div>
 
+            {/* НОВОЕ ПОЛЕ: Артист / Исполнитель */}
+            <div className="space-y-2">
+                <label htmlFor="track-artist" className="block text-base font-medium text-zinc-300 text-center mb-2">
+                    Исполнитель / Артист
+                </label>
+                <input
+                    {...register('artist')}
+                    id="track-artist"
+                    type="text"
+                    disabled={isLoading}
+                    placeholder="e.g. M83 (необязательно)"
+                    className="w-full px-5 py-3.5 bg-[#27272a]/70 border border-[#3f3f46] rounded-xl text-center text-base text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all disabled:opacity-50"
+                />
+            </div>
+
+            {/* Поле MP3 файла */}
             <div className="space-y-2">
                 <label className="block text-base font-medium text-zinc-300 text-center mb-2">
                     MP3 файл
