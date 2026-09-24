@@ -12,6 +12,7 @@ type Props = {
     autoPlay?: boolean;
     repeatMode?: RepeatMode;
     isShuffle?: boolean;
+    onTimeUpdate?: (time: number) => void;
     onToggleRepeat?: () => void;
     onToggleShuffle?: () => void;
     onEnded?: () => void;
@@ -19,7 +20,6 @@ type Props = {
     onPrev?: () => void;
 };
 
-// Иконки для Repeat / Shuffle
 const ShuffleIcon = ({ className }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
@@ -47,6 +47,7 @@ export const CustomAudioPlayer = ({
                                       autoPlay = true,
                                       repeatMode = 'off',
                                       isShuffle = false,
+                                      onTimeUpdate, // 👈 1. ДОБАВЛЕНО СУДА
                                       onToggleRepeat,
                                       onToggleShuffle,
                                       onEnded,
@@ -198,13 +199,12 @@ export const CustomAudioPlayer = ({
         if (audioRef.current) {
             const time = audioRef.current.currentTime;
             setCurrentTime(time);
+            onTimeUpdate?.(time); // 👈 2. ПЕРЕДАЕМ ВРЕМЯ НАРУЖУ В GLOBALPLAYER
             localStorage.setItem(`player-time-${src}`, String(time));
         }
     };
 
-    // Обработка завершения трека
     const handleEndedTrack = () => {
-        // Если включен повтор ОДНОГО трека
         if (repeatMode === 'one' && audioRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
@@ -268,6 +268,7 @@ export const CustomAudioPlayer = ({
         if (audioRef.current) {
             audioRef.current.currentTime = newTime;
             setCurrentTime(newTime);
+            onTimeUpdate?.(newTime); // 👈 ОБНОВЛЯЕМ ВРЕМЯ ПРИ ПЕРЕТАСКИВАНИИ ПОЛЗУНКА
         }
     };
 
@@ -298,9 +299,7 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
-            {/* Панель управления треком */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                {/* Кнопка SHUFFLE */}
                 {onToggleShuffle && (
                     <button
                         onClick={onToggleShuffle}
@@ -315,7 +314,6 @@ export const CustomAudioPlayer = ({
                     </button>
                 )}
 
-                {/* Кнопка PREV */}
                 {onPrev && (
                     <button
                         onClick={onPrev}
@@ -328,7 +326,6 @@ export const CustomAudioPlayer = ({
                     </button>
                 )}
 
-                {/* Кнопка PLAY / PAUSE */}
                 <button
                     onClick={togglePlay}
                     type="button"
@@ -349,7 +346,6 @@ export const CustomAudioPlayer = ({
                     )}
                 </button>
 
-                {/* Кнопка NEXT */}
                 {onNext && (
                     <button
                         onClick={onNext}
@@ -362,7 +358,6 @@ export const CustomAudioPlayer = ({
                     </button>
                 )}
 
-                {/* Кнопка REPEAT */}
                 {onToggleRepeat && (
                     <button
                         onClick={onToggleRepeat}
@@ -391,7 +386,6 @@ export const CustomAudioPlayer = ({
                 )}
             </div>
 
-            {/* Прогресс-бар и тайминги */}
             <div className="flex flex-col flex-1 gap-1">
                 <input
                     type="range"
@@ -410,7 +404,6 @@ export const CustomAudioPlayer = ({
                 </div>
             </div>
 
-            {/* Аудио-визуалайзер */}
             <div className="hidden md:flex items-center shrink-0">
                 <AudioVisualizer
                     audioRef={audioRef}
@@ -419,7 +412,6 @@ export const CustomAudioPlayer = ({
                 />
             </div>
 
-            {/* Громкость */}
             <div className="hidden sm:flex items-center gap-2 w-24 shrink-0">
                 <button
                     onClick={toggleMute}

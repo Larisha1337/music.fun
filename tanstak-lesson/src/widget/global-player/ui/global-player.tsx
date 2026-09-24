@@ -1,7 +1,10 @@
+import { useState, useEffect } from "react";
 import { useAudioPlayer } from "@/shared/ui/lib/audio-player-context";
 import { CustomAudioPlayer } from "@/shared/ui/audio-player/custom-audio-player";
 import { useCoverColor } from "@/shared/ui/lib/use-cover-color";
 import { usePictureInPicture } from "@/shared/ui/lib/use-picture-in-picture";
+import { LyricsView } from "@/shared/ui/lib/parce/lyrics-view";
+import { fetchLyrics } from "@/shared/api/lyrics-api";
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || "http://localhost:5000";
 
@@ -26,8 +29,24 @@ export const GlobalPlayer = () => {
 
     const { isPipOpen, isSupported, togglePip, renderPip } = usePictureInPicture();
 
+    // Состояния для работы с текстом песни
+    const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+    const [lrcString, setLrcString] = useState("");
+    const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+
     const coverSrc = getMediaUrl(currentTrack?.coverUrl);
     const ambientColor = useCoverColor(coverSrc, "#6366f1");
+
+    // Загружаем текст песни при смене текущего трека
+    useEffect(() => {
+        if (!currentTrack) return;
+
+        setIsLoadingLyrics(true);
+        fetchLyrics(currentTrack.title, currentTrack.artist)
+            .then((lrc) => setLrcString(lrc || ""))
+            .finally(() => setIsLoadingLyrics(false));
+    }, [currentTrack?._id, currentTrack?.title, currentTrack?.artist]);
 
     if (!currentTrack) return null;
 
@@ -89,11 +108,29 @@ export const GlobalPlayer = () => {
                                     onNext={playNext}
                                     onPrev={playPrev}
                                     onEnded={playNext}
+                                    onTimeUpdate={(time: number) => setCurrentTime(time)}
                                     autoPlay
                                 />
                             </div>
 
                             <div className="absolute right-4 top-4 sm:static flex items-center gap-2 shrink-0">
+                                {/* Кнопка открытия караоке / текста */}
+                                <button
+                                    onClick={() => setIsLyricsOpen(!isLyricsOpen)}
+                                    title="Текст песни"
+                                    aria-label="Текст песни"
+                                    className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+                                        isLyricsOpen
+                                            ? "bg-white/20 text-white"
+                                            : "text-zinc-400 hover:text-white hover:bg-white/10"
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                                    </svg>
+                                </button>
+
                                 {isSupported && (
                                     <button
                                         onClick={togglePip}
@@ -120,6 +157,58 @@ export const GlobalPlayer = () => {
                             </div>
 
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Полноэкранный режим с текстом песни (Spotify Style) */}
+            {isLyricsOpen && (
+                <div className="fixed inset-0 z-[120] bg-[#09090b]/95 backdrop-blur-3xl flex flex-col items-center justify-between p-6 sm:p-10 animate-in fade-in duration-300">
+                    <div
+                        className="absolute inset-0 -z-10 blur-[150px] opacity-40 pointer-events-none transition-all duration-1000"
+                        style={{ backgroundColor: ambientColor }}
+                    />
+
+                    {/* Шапка модалки */}
+                    <div className="max-w-5xl w-full flex items-center justify-between z-10 shrink-0">
+                        <div className="flex items-center gap-4">
+                            {coverSrc && (
+                                <img
+                                    src={coverSrc}
+                                    alt={currentTrack.title}
+                                    className="w-14 h-14 rounded-xl object-cover border border-white/10 shadow-2xl"
+                                />
+                            )}
+                            <div>
+                                <h3 className="text-xl font-bold text-white tracking-tight">{currentTrack.title}</h3>
+                                <p className="text-sm text-zinc-400 font-medium">
+                                    {currentTrack.artist || "Неизвестный исполнитель"}
+                                </p>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsLyricsOpen(false)}
+                            className="w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    {/* Центрированный контент текста */}
+                    <div className="w-full max-w-4xl flex-1 flex items-center justify-center z-10 my-auto">
+                        {isLoadingLyrics ? (
+                            <div className="text-center text-zinc-400 animate-pulse text-xl font-semibold">
+                                Загрузка текста...
+                            </div>
+                        ) : (
+                            <LyricsView
+                                lrcString={lrcString}
+                                currentTime={currentTime}
+                                offset={0.3}
+                            />
+                        )}
                     </div>
                 </div>
             )}
@@ -184,6 +273,7 @@ export const GlobalPlayer = () => {
                                 onNext={playNext}
                                 onPrev={playPrev}
                                 onEnded={playNext}
+                                onTimeUpdate={(time: number) => setCurrentTime(time)}
                                 autoPlay
                             />
                         </div>
