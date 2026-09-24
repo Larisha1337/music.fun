@@ -199,7 +199,7 @@ export const EditTrackForm = ({ trackId, initialTitle, initialCoverUrl, onSucces
                         disabled={isSubmitting}
                         className="px-6 py-2.5 bg-[#27272a] hover:bg-[#3f3f46] text-zinc-200 text-sm font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50"
                     >
-                        Отмена
+                        Назад
                     </button>
                 )}
                 <button

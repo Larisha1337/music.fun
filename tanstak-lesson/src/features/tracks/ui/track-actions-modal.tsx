@@ -16,9 +16,15 @@ export const TrackActionsModal = ({ trackId, title, coverUrl, isOpen, onClose }:
 
     if (!isOpen) return null;
 
+    // Полное закрытие модалки (крестик или успешное действие)
     const handleClose = () => {
         setMode("menu");
         onClose();
+    };
+
+    // Возврат к выбору действия (кнопка "Назад")
+    const handleBack = () => {
+        setMode("menu");
     };
 
     return (
@@ -47,7 +53,7 @@ export const TrackActionsModal = ({ trackId, title, coverUrl, isOpen, onClose }:
                         initialTitle={title}
                         initialCoverUrl={coverUrl}
                         onSuccess={handleClose}
-                        onCancel={handleClose}
+                        onCancel={handleBack}
                     />
                 )}
 
@@ -55,7 +61,7 @@ export const TrackActionsModal = ({ trackId, title, coverUrl, isOpen, onClose }:
                     <DeleteTrackView
                         trackId={trackId}
                         title={title}
-                        onCancel={handleClose}
+                        onCancel={handleBack}
                         onSuccess={handleClose}
                     />
                 )}
