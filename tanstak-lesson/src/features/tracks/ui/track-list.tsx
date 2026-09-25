@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { TrackActionsModal } from './track-actions-modal'
 import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
+import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal' // 👈 Наш новый импорт
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
@@ -21,7 +22,6 @@ interface TrackListProps {
     enableActions?: boolean // true для "Моих треков", false для "Глобальной ленты"
 }
 
-// Хелпер для безопасного парсинга названия и исполнителя
 const getTrackDisplayInfo = (track: Track) => {
     let displayTitle = track.title
     let displayArtist = track.artist?.trim()
@@ -53,10 +53,12 @@ export const TrackList = ({
                               tracks = [],
                               isLoading,
                               emptyMessage = 'Треков пока нет',
-                              // showAuthor = false,
+                              showAuthor = false,
                               enableActions = false
                           }: TrackListProps) => {
     const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
+    const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null) // 👈 Состояние для добавления в плейлист
+
     const { currentTrack, playTrack, closePlayer } = useAudioPlayer()
 
     const selectedTrack = tracks.find((t) => t._id === selectedTrackId)
@@ -156,24 +158,32 @@ export const TrackList = ({
                                     {displayTitle}
                                 </span>
 
-                                {/* Исполнитель */}
                                 <span className="text-sm text-zinc-400 truncate">
                                     {displayArtist}
                                 </span>
 
-                                {/*/!* Автор загрузки *!/*/}
-                                {/*{showAuthor && track.authorEmail && (*/}
-                                {/*    <span className="text-xs text-zinc-500 truncate mt-0.5">*/}
-                                {/*        Загрузил: {track.authorEmail}*/}
-                                {/*    </span>*/}
-                                {/*)}*/}
+                                {showAuthor && track.authorEmail && (
+                                    <span className="text-xs text-zinc-500 truncate mt-0.5">
+                                        Загрузил: {track.authorEmail}
+                                    </span>
+                                )}
                             </div>
+
+                            {/* 👈 КНОПКА ДОБАВЛЕНИЯ В ПЛЕЙЛИСТ */}
+                            <button
+                                type="button"
+                                onClick={() => setPlaylistTrackId(track._id)}
+                                title="Добавить в плейлист"
+                                className="w-10 h-10 rounded-xl bg-zinc-800/80 hover:bg-indigo-600 text-zinc-300 hover:text-white flex items-center justify-center border border-zinc-700 transition-all cursor-pointer shrink-0"
+                            >
+                                ➕
+                            </button>
                         </div>
                     )
                 })}
             </div>
 
-            {/* Модалка действий только для своих треков */}
+            {/* Модалка редактирования/удаления моих треков */}
             {enableActions && selectedTrack && (
                 <TrackActionsModal
                     trackId={selectedTrack._id}
@@ -181,6 +191,15 @@ export const TrackList = ({
                     coverUrl={selectedTrack.coverUrl}
                     isOpen={Boolean(selectedTrack)}
                     onClose={() => setSelectedTrackId(null)}
+                />
+            )}
+
+            {/* 👈 Модалка выбора плейлиста */}
+            {playlistTrackId && (
+                <AddToPlaylistModal
+                    trackId={playlistTrackId}
+                    isOpen={Boolean(playlistTrackId)}
+                    onClose={() => setPlaylistTrackId(null)}
                 />
             )}
         </>

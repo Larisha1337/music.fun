@@ -145,6 +145,25 @@ export const CustomAudioPlayer = ({
         };
     }, [src, autoPlay]);
 
+    useEffect(() => {
+        if (!isPlaying) return;
+
+        let rafId: number;
+
+        const tick = () => {
+            if (audioRef.current) {
+                const time = audioRef.current.currentTime;
+                setCurrentTime(time);
+                onTimeUpdate?.(time);
+            }
+            rafId = requestAnimationFrame(tick);
+        };
+
+        rafId = requestAnimationFrame(tick);
+
+        return () => cancelAnimationFrame(rafId);
+    }, [isPlaying, onTimeUpdate]);
+
     const togglePlay = () => {
         if (!audioRef.current) return;
 
