@@ -1,10 +1,32 @@
 import express from 'express'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
 import authMiddleware from '../middleware/auth.js'
 import Playlist from '../models/Playlist.js'
 
 const router = express.Router()
 
-// Применяем middleware ко всем роутам ниже
+// Создаем папку uploads, если её ещё нет
+if (!fs.existsSync('uploads')) {
+    fs.mkdirSync('uploads')
+}
+
+// Конфигурация Multer для загрузки обложек
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/')
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, 'cover-' + uniqueSuffix + path.extname(file.originalname))
+    }
+})
+
+// 👈 Вот эта переменная upload, которой не хватало
+const upload = multer({ storage })
+
+// Применяем авторизацию ко всем роутам ниже
 router.use(authMiddleware)
 
 // 1. Получить МОИ плейлисты (для сайдбара)
@@ -32,42 +54,62 @@ router.get('/:id', async (req, res) => {
     }
 })
 
-// 3. Создать плейлист
-router.post('/', async (req, res) => {
+// 3. Создать плейлист (с поддержкой файла обложки)
+router.post('/', upload.single('cover'), async (req, res) => {
     try {
-        const { name, description, coverUrl } = req.body
+        const body = req.body || {}
+        const { name, description } = body
 
-        if (!name) return res.status(400).json({ message: 'Название обязательно' })
+        if (!name || !name.trim()) {
+            return res.status(400).json({ message: 'Название обязательно' })
+        }
+
+        let coverUrl = body.coverUrl || null
+        if (req.file) {
+            coverUrl = `/uploads/${req.file.filename}`
+        }
 
         const newPlaylist = await Playlist.create({
-            name,
-            description,
+            name: name.trim(),
+            description: description?.trim(),
             coverUrl,
-            ownerId: req.userId // Привязываем к создателю
+            ownerId: req.userId
         })
 
         res.status(201).json(newPlaylist)
     } catch (error) {
-        console.error(error)
+        console.error('Ошибка создания плейлиста:', error)
         res.status(500).json({ message: 'Ошибка создания плейлиста' })
     }
 })
 
-// 4. Обновить плейлист (название, обложка)
-router.put('/:id', async (req, res) => {
+// 4. Обновить плейлист (название, описание и файл обложки)
+router.put('/:id', upload.single('cover'), async (req, res) => {
     try {
-        const { name, description, coverUrl } = req.body
+        const body = req.body || {}
+        const { name, description } = body
+
+        const updateData = {}
+        if (name) updateData.name = name
+        if (description !== undefined) updateData.description = description
+
+        // Если пришел файл через FormData
+        if (req.file) {
+            updateData.coverUrl = `/uploads/${req.file.filename}`
+        } else if (body.coverUrl) {
+            updateData.coverUrl = body.coverUrl
+        }
 
         const updated = await Playlist.findOneAndUpdate(
-            { _id: req.params.id, ownerId: req.userId }, // Ищем только среди своих
-            { name, description, coverUrl },
+            { _id: req.params.id, ownerId: req.userId },
+            updateData,
             { new: true }
-        )
+        ).populate('tracks')
 
         if (!updated) return res.status(404).json({ message: 'Плейлист не найден' })
         res.status(200).json(updated)
     } catch (error) {
-        console.error(error)
+        console.error('Ошибка обновления:', error)
         res.status(500).json({ message: 'Ошибка обновления' })
     }
 })
