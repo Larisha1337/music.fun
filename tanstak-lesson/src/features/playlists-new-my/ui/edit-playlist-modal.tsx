@@ -68,6 +68,7 @@ export const EditPlaylistModal = ({
                     >
                         Отмена
                     </button>
+
                     <button
                         type="submit"
                         disabled={isUpdating}

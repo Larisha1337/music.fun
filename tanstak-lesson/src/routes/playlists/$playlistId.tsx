@@ -7,10 +7,9 @@ import {
     useUpdatePlaylistMutation,
     useDeletePlaylistMutation
 } from "@/features/playlists-new-my/api/use-playlists-query";
-import { useMyTracksQuery } from "@/features/tracks/api/use-tracks-query";
 import { useAudioPlayer } from "@/shared/ui/lib/audio-player-context";
 import { ConfirmModal } from "@/shared/ui/modal/confirm-modal";
-
+import { useAllTracksQuery } from "@/features/tracks/public/api/use-all-tracks-query.ts";
 import { PlaylistHeader } from "@/features/playlists-new-my/ui/playlist-header";
 import { PlaylistTrackItem } from "@/features/playlists-new-my/ui/playlist-track-item";
 import { PlaylistModal } from "@/features/playlists-new-my/ui/playlist-modal";
@@ -33,7 +32,7 @@ function PlaylistDetailPage() {
 
     // API Мутации и Запросы
     const { data: playlist, isLoading } = usePlaylistQuery(playlistId);
-    const { data: allTracks = [], isLoading: isLoadingAllTracks } = useMyTracksQuery();
+    const { data: allTracks = [], isLoading: isLoadingAllTracks } = useAllTracksQuery();
 
     const { mutate: removeTrack } = useRemoveTrackFromPlaylistMutation(playlistId);
     const { mutate: addTrack } = useAddTrackToPlaylistMutation();

@@ -25,28 +25,35 @@ export const ConfirmModal = ({
                              }: ConfirmModalProps) => {
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={title}>
-            <p className="text-sm text-zinc-300 leading-relaxed">{description}</p>
-            <div className="flex justify-end gap-3 mt-4">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={isLoading}
-                    className="px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                >
-                    {cancelText}
-                </button>
-                <button
-                    type="button"
-                    onClick={onConfirm}
-                    disabled={isLoading}
-                    className={`px-4 py-2 text-xs font-semibold text-white rounded-xl transition-colors cursor-pointer disabled:opacity-50 ${
-                        isDanger
-                            ? "bg-red-600 hover:bg-red-500"
-                            : "bg-indigo-600 hover:bg-indigo-500"
-                    }`}
-                >
-                    {isLoading ? "Обработка..." : confirmText}
-                </button>
+            <div className="flex flex-col items-center justify-center gap-4 w-full">
+                {/* Текст описания строго по центру */}
+                <p className="text-sm text-zinc-300 leading-relaxed text-center max-w-sm">
+                    {description}
+                </p>
+
+                {/* Равномерно отцентрированные кнопки одинаковой ширины */}
+                <div className="flex items-center justify-center gap-3 w-full mt-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={isLoading}
+                        className="flex-1 py-2.5 px-4 text-xs font-semibold text-zinc-300 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] rounded-xl transition-colors cursor-pointer text-center"
+                    >
+                        {cancelText}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        disabled={isLoading}
+                        className={`flex-1 py-2.5 px-4 text-xs font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-md disabled:opacity-50 text-center ${
+                            isDanger
+                                ? "bg-red-600 hover:bg-red-500"
+                                : "bg-indigo-600 hover:bg-indigo-500"
+                        }`}
+                    >
+                        {isLoading ? "Обработка..." : confirmText}
+                    </button>
+                </div>
             </div>
         </Modal>
     );
