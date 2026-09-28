@@ -6,8 +6,7 @@ const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:500
 export type UploadTrackFormValues = {
     title: string;
     artist?: string;
-    file: FileList;
-    cover?: FileList;
+    // file больше не нужен, так как трек ищется через Deezer и стримится с YouTube!
 }
 
 export const useUploadTrackMutation = (onSuccess?: () => void) => {
@@ -16,52 +15,30 @@ export const useUploadTrackMutation = (onSuccess?: () => void) => {
     return useMutation({
         mutationFn: async (formData: UploadTrackFormValues) => {
             const token = localStorage.getItem(localStorageKey.accessToken)
-            const file = formData.file?.[0]
-            if (!file) throw new Error('Файл не выбран')
 
-            const body = new FormData()
-            body.append('title', formData.title)
-
-            // 💡 ВАЖНО: Отправляем артиста на сервер, если он заполнен
-            if (formData.artist?.trim()) {
-                body.append('artist', formData.artist.trim())
+            if (!formData.title?.trim()) {
+                throw new Error('Название трека обязательно')
             }
 
-            body.append('file', file)
-
+            // Отправляем обычный JSON вместо FormData
             const response = await fetch(`${MY_API_BASE}/api/tracks`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    title: formData.title.trim(),
+                    artist: formData.artist?.trim() || ''
+                })
             })
 
             if (!response.ok) {
                 const error = await response.json()
-                throw new Error(error.message ?? 'Не удалось загрузить трек')
+                throw new Error(error.message ?? 'Не удалось найти или создать трек')
             }
 
-            const result = await response.json()
-            const trackId = result.track?._id
-
-            // Загрузка обложки отдельным запросом
-            const coverFile = formData.cover?.[0]
-            if (coverFile && trackId) {
-                const coverBody = new FormData()
-                coverBody.append('cover', coverFile)
-
-                const coverResponse = await fetch(`${MY_API_BASE}/api/tracks/${trackId}/cover`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${token}` },
-                    body: coverBody
-                })
-
-                if (coverResponse.ok) {
-                    return coverResponse.json()
-                }
-                console.warn('Трек создан, но обложка не загрузилась')
-            }
-
-            return result
+            return response.json()
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-tracks'] })

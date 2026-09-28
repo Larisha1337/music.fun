@@ -1,6 +1,7 @@
 import Track from '../models/Track.js'
 import User from '../models/User.js'
 import { uploadToR2, deleteFromR2 } from '../service/r2.js'
+import { findAndStreamTrack } from '../service/music-finder.js'
 
 // 1. Глобальная лента (с авторами)
 export const getAllTracks = async (req, res) => {
@@ -64,41 +65,50 @@ export const getMyTracks = async (req, res) => {
     }
 }
 
-// 3. Загрузить новый трек
+// 3. Найти и создать трек через Deezer + YouTube
 export const createTrack = async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ message: 'Файл не загружен' })
-        }
-
         const userId = req.userId || req.user?.id
         if (!userId) {
             return res.status(401).json({ message: 'Не удалось определить ID пользователя' })
         }
 
+        const { title, artist } = req.body;
+
+        if (!title || !artist) {
+            return res.status(400).json({ message: 'Название и исполнитель обязательны' })
+        }
+
         const user = await User.findById(userId).select('email name').lean()
-        const fileUrl = await uploadToR2(req.file, 'tracks')
+
+        console.log(`[Track Search] Пользователь ${userId} запрашивает: "${title}" (${artist})`)
+
+        // Ищем в Deezer метаданные и на YouTube аудиопоток
+        const trackInfo = await findAndStreamTrack(title, artist);
 
         const track = await Track.create({
             userId,
-            title: req.body.title || req.file.originalname,
-            artist: req.body.artist || '',
-            fileUrl,
-            fileSize: req.file.size,
-            isSeed: false
+            title: trackInfo.title,
+            artist: trackInfo.artist,
+            fileUrl: trackInfo.fileUrl,     // Ссылка на поток YouTube
+            coverUrl: trackInfo.coverUrl,   // Обложка из Deezer
+            isSeed: false,
+            isStreamed: true,               // Флаг, что это стрим, а не локальный файл
         })
 
         const trackWithAuthor = {
             ...track.toObject(),
-            authorEmail: user ? (user.name || user.email) : '' // 👈 Возвращаем authorEmail сразу клиенту
+            authorEmail: user ? (user.name || user.email) : ''
         }
 
-        console.log(`[Track Created] Трек "${track.title}" (${track.artist}) загружен в R2 пользователем ${userId}`)
-
+        console.log(`[Track Created] Стрим-трек "${track.title}" успешно создан`)
         res.status(201).json({ track: trackWithAuthor })
     } catch (error) {
+        if (error.message.includes('не найдено')) {
+            return res.status(404).json({ message: error.message })
+        }
         console.error('[Create Track Error]:', error)
-        res.status(500).json({ message: 'Ошибка при загрузке трека' })
+        res.status(500).json({ message: 'Ошибка при поиске или создании трека' })
     }
 }
 
@@ -221,8 +231,13 @@ export const deleteTrack = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        if (track.fileUrl) await deleteFromR2(track.fileUrl)
-        if (track.coverUrl) await deleteFromR2(track.coverUrl)
+        // Если это не стрим, а старый файл из R2 — удаляем физически
+        if (!track.isStreamed) {
+            if (track.fileUrl) await deleteFromR2(track.fileUrl)
+            if (track.coverUrl && !track.coverUrl.startsWith('http')) {
+                await deleteFromR2(track.coverUrl)
+            }
+        }
 
         await track.deleteOne()
         res.json({ message: 'Удалено' })
