@@ -27,6 +27,7 @@ export const useUpdateTrackFileMutation = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-tracks'] })
+            queryClient.invalidateQueries({ queryKey: ['all-tracks'] })
         }
     })
 }

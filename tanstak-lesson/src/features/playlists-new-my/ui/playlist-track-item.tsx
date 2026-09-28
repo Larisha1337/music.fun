@@ -1,3 +1,7 @@
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {TrackLikeButton} from "@/features/tracks/ui/button/tracks-likes-button.tsx";
+
 interface Track {
     _id: string;
     title: string;
@@ -22,15 +26,45 @@ export const PlaylistTrackItem = ({
                                       onRequestRemove,
                                       getImageUrl
                                   }: PlaylistTrackItemProps) => {
+    // Подключаем хук сортировки от dnd-kit
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: track._id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 1,
+        opacity: isDragging ? 0.4 : 1,
+    };
+
     return (
         <div
-            className={`flex items-center justify-between p-3 rounded-xl border transition-all group ${
+            ref={setNodeRef}
+            style={style}
+            className={`flex items-center justify-between p-3 rounded-xl border transition-colors group ${
                 isCurrent
                     ? "bg-indigo-950/30 border-indigo-500/40"
                     : "bg-[#18181b] hover:bg-[#27272a] border-[#27272a]"
             }`}
         >
-            <div className="flex items-center gap-4 truncate flex-1 min-w-0">
+            <div className="flex items-center gap-3 truncate flex-1 min-w-0">
+                {/* ⠿ Ручка для захвата и перетаскивания трека */}
+                <button
+                    type="button"
+                    {...attributes}
+                    {...listeners}
+                    className="text-zinc-600 hover:text-zinc-300 cursor-grab active:cursor-grabbing p-1 shrink-0 transition-colors"
+                    title="Перетащить трек"
+                >
+                    ⠿
+                </button>
+
                 <span className="text-xs text-zinc-500 font-medium w-5 text-center shrink-0">
                     {index + 1}
                 </span>
@@ -81,8 +115,10 @@ export const PlaylistTrackItem = ({
                 </div>
             </div>
 
-            {/* Минус — вызывает модалку подтверждения удаления трека из плейлиста */}
+            {/* Кнопка удаления из плейлиста */}
             <div className="flex items-center gap-2 shrink-0 ml-3">
+                {/* 👈 Добавляем кнопку лайка */}
+                <TrackLikeButton trackId={track._id} />
                 <button
                     type="button"
                     onClick={onRequestRemove}

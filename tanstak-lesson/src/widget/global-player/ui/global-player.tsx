@@ -24,13 +24,13 @@ export const GlobalPlayer = () => {
         repeatMode,
         isShuffle,
         toggleRepeatMode,
-        toggleShuffle
+        toggleShuffle,
+        isFullscreen,
+        toggleFullscreen
     } = useAudioPlayer();
 
     const { isPipOpen, isSupported, togglePip, renderPip } = usePictureInPicture();
 
-    // Состояния для работы с текстом песни
-    const [isLyricsOpen, setIsLyricsOpen] = useState(false);
     const [lrcString, setLrcString] = useState("");
     const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -38,15 +38,32 @@ export const GlobalPlayer = () => {
     const coverSrc = getMediaUrl(currentTrack?.coverUrl);
     const ambientColor = useCoverColor(coverSrc, "#6366f1");
 
-    // Загружаем текст песни при смене текущего трека
     useEffect(() => {
         if (!currentTrack) return;
+        let isCancelled = false;
 
         setIsLoadingLyrics(true);
         fetchLyrics(currentTrack.title, currentTrack.artist)
-            .then((lrc) => setLrcString(lrc || ""))
-            .finally(() => setIsLoadingLyrics(false));
+            .then((lrc) => {
+                if (!isCancelled) setLrcString(lrc || "");
+            })
+            .finally(() => {
+                if (!isCancelled) setIsLoadingLyrics(false);
+            });
+
+        return () => {
+            isCancelled = true;
+        };
     }, [currentTrack?._id, currentTrack?.title, currentTrack?.artist]);
+
+    useEffect(() => {
+        if (!isFullscreen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") toggleFullscreen();
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isFullscreen, toggleFullscreen]);
 
     if (!currentTrack) return null;
 
@@ -56,178 +73,190 @@ export const GlobalPlayer = () => {
     return (
         <>
             {!isPipOpen && (
-                <div className="fixed bottom-0 left-0 right-0 z-[100] transition-all duration-700">
+                <div
+                    className={
+                        isFullscreen
+                            ? "fixed inset-0 w-screen h-screen z-[9999] bg-[#09090b]/85 backdrop-blur-3xl flex flex-col items-center justify-between p-6 sm:p-10 text-white overflow-hidden transition-all duration-300"
+                            : "fixed bottom-0 left-0 right-0 z-[100] bg-[#18181b]/75 backdrop-blur-xl border-t border-white/15 px-4 py-2 flex flex-row items-center gap-4 transition-all duration-300"
+                    }
+                >
+                    {/* Сочное фоновое свечение */}
                     <div
-                        className="absolute inset-0 -z-10 blur-3xl opacity-40 transition-all duration-700 pointer-events-none scale-y-125"
+                        className={
+                            isFullscreen
+                                ? "absolute inset-0 -z-10 blur-[140px] opacity-70 pointer-events-none transition-colors duration-700"
+                                : "absolute inset-0 -z-10 blur-3xl opacity-75 pointer-events-none scale-y-125 transition-colors duration-700"
+                        }
                         style={{ backgroundColor: ambientColor }}
                     />
 
-                    <div
-                        className="relative bg-[#18181b]/90 backdrop-blur-xl border-t border-white/10 p-3 sm:p-4 transition-all duration-700"
-                        style={{ boxShadow: `0 -15px 40px -10px ${ambientColor}33` }}
-                    >
-                        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-
-                            <div className="flex items-center gap-3 w-full sm:w-1/4 min-w-0 shrink-0">
-                                <div
-                                    className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[#27272a] border border-white/10 flex items-center justify-center shadow-lg transition-all duration-700"
-                                    style={{ boxShadow: `0 4px 20px ${ambientColor}40` }}
+                    {/* 1. Полноэкранный хэдер и контент */}
+                    {isFullscreen && (
+                        <>
+                            <div className="w-full max-w-5xl mx-auto flex items-center justify-between z-10 shrink-0 mb-4">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                    <span className="text-xs uppercase tracking-widest text-zinc-300 font-bold">
+                                        Сейчас играет
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={toggleFullscreen}
+                                    className="w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/25 text-white transition-all cursor-pointer shadow-lg text-lg"
+                                    title="Свернуть (Esc)"
                                 >
-                                    {coverSrc ? (
-                                        <img
-                                            src={coverSrc}
-                                            alt={currentTrack.title}
-                                            className="w-full h-full object-cover"
-                                        />
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* СТРОГО ЦЕНТРИРОВАННЫЙ КОНТЕЙНЕР */}
+                            <div className="w-full max-w-5xl mx-auto flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-16 my-auto z-10 py-2 min-h-0">
+                                {/* Левая часть: Обложка + Название */}
+                                <div className="flex flex-col items-center justify-center text-center gap-6 w-full lg:w-1/2">
+                                    <div
+                                        className="w-60 h-60 sm:w-72 sm:h-72 lg:w-80 lg:h-80 rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-zinc-900 shrink-0 transition-transform duration-500 hover:scale-[1.02]"
+                                        style={{ boxShadow: `0 35px 90px -15px ${ambientColor}` }}
+                                    >
+                                        {coverSrc ? (
+                                            <img src={coverSrc} alt={currentTrack.title} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-6xl">🎵</div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1.5 max-w-md px-4">
+                                        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white truncate">
+                                            {currentTrack.title}
+                                        </h2>
+                                        <p className="text-base sm:text-lg text-zinc-300 font-medium truncate">
+                                            {currentTrack.artist || "Неизвестный исполнитель"}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Правая часть: Текст песни */}
+                                <div className="w-full lg:w-1/2 h-[45vh] lg:h-[60vh] flex flex-col items-center justify-center bg-black/40 rounded-3xl p-6 sm:p-8 border border-white/10 backdrop-blur-2xl shadow-2xl overflow-hidden min-h-0">
+                                    {isLoadingLyrics ? (
+                                        <div className="text-center text-zinc-300 animate-pulse text-lg font-medium my-auto">
+                                            Загрузка текста...
+                                        </div>
+                                    ) : lrcString ? (
+                                        <div className="w-full h-full overflow-y-auto flex flex-col justify-center">
+                                            <LyricsView
+                                                lrcString={lrcString}
+                                                currentTime={currentTime}
+                                                offset={0.3}
+                                            />
+                                        </div>
                                     ) : (
-                                        <svg className="w-6 h-6 text-zinc-500 fill-current" viewBox="0 0 16 16">
-                                            <path d="M8 3a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a6 6 0 1 1 12 0v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1V8a5 5 0 0 0-5-5z" />
-                                        </svg>
+                                        <div className="text-center text-zinc-400 text-lg font-medium my-auto">
+                                            Для этого трека пока нет текста
+                                        </div>
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0 flex flex-col">
-                                    <span className="text-sm font-bold text-zinc-100 truncate">
-                                        {currentTrack.title}
-                                    </span>
-                                    <span className="text-[11px] text-zinc-400 truncate">
-                                        {currentTrack.artist || "Неизвестный исполнитель"}
-                                    </span>
-                                </div>
                             </div>
+                        </>
+                    )}
 
-                            <div className="flex-1 w-full">
-                                <CustomAudioPlayer
-                                    src={audioSrc}
-                                    title={currentTrack.title}
-                                    coverSrc={coverSrc}
-                                    ambientColor={ambientColor}
-                                    repeatMode={repeatMode}
-                                    isShuffle={isShuffle}
-                                    onToggleRepeat={toggleRepeatMode}
-                                    onToggleShuffle={toggleShuffle}
-                                    onNext={playNext}
-                                    onPrev={playPrev}
-                                    onEnded={playNext}
-                                    onTimeUpdate={(time: number) => setCurrentTime(time)}
-                                    autoPlay
-                                />
-                            </div>
-
-                            <div className="absolute right-4 top-4 sm:static flex items-center gap-2 shrink-0">
-                                {/* Кнопка открытия караоке / текста */}
-                                <button
-                                    onClick={() => setIsLyricsOpen(!isLyricsOpen)}
-                                    title="Текст песни"
-                                    aria-label="Текст песни"
-                                    className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
-                                        isLyricsOpen
-                                            ? "bg-white/20 text-white"
-                                            : "text-zinc-400 hover:text-white hover:bg-white/10"
-                                    }`}
-                                >
-                                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                    {/* 2. Левая часть для обычного режима (исходный нормальный размер) */}
+                    {!isFullscreen && (
+                        <div
+                            onClick={toggleFullscreen}
+                            className="flex items-center gap-3 w-full sm:w-1/4 min-w-0 shrink-0 cursor-pointer group"
+                            title="Развернуть во весь экран"
+                        >
+                            <div
+                                className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[#27272a] border border-white/15 flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-105"
+                                style={{ boxShadow: `0 6px 24px ${ambientColor}` }}
+                            >
+                                {coverSrc ? (
+                                    <img src={coverSrc} alt={currentTrack.title} className="w-full h-full object-cover" />
+                                ) : (
+                                    <svg className="w-6 h-6 text-zinc-400 fill-current" viewBox="0 0 16 16">
+                                        <path d="M8 3a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a6 6 0 1 1 12 0v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1V8a5 5 0 0 0-5-5z" />
                                     </svg>
-                                </button>
-
-                                {isSupported && (
-                                    <button
-                                        onClick={togglePip}
-                                        title={isPipOpen ? "Вернуть плеер" : "Вынести плеер поверх всех окон"}
-                                        aria-label={isPipOpen ? "Вернуть плеер" : "Вынести плеер поверх всех окон"}
-                                        className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h12a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                        </svg>
-                                    </button>
                                 )}
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-col">
+                                <span className="text-sm font-bold text-white truncate group-hover:text-indigo-400 transition-colors">
+                                    {currentTrack.title}
+                                </span>
+                                <span className="text-[11px] text-zinc-300 truncate">
+                                    {currentTrack.artist || "Неизвестный исполнитель"}
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
+                    {/* 🌟 3. ЕДИНСТВЕННЫЙ ЭКЗЕМПЛЯР ПЛЕЕРА (НЕ РАЗМОНТИРУЕТСЯ — ПОЛЗУНОК ОГРАНИЧЕН ПО ВЫСОТЕ) */}
+                    <div
+                        className={isFullscreen ? "w-full max-w-4xl mx-auto shrink-0 pt-3 pb-2" : "flex-1 w-full h-16 flex items-center"}
+                        style={isFullscreen ? ({ "--accent-color": ambientColor } as React.CSSProperties) : undefined}
+                    >
+                        <CustomAudioPlayer
+                            src={audioSrc}
+                            title={currentTrack.title}
+                            coverSrc={coverSrc}
+                            ambientColor={ambientColor}
+                            repeatMode={repeatMode}
+                            isShuffle={isShuffle}
+                            onToggleRepeat={toggleRepeatMode}
+                            onToggleShuffle={toggleShuffle}
+                            onNext={playNext}
+                            onPrev={playPrev}
+                            onEnded={playNext}
+                            onTimeUpdate={(time: number) => setCurrentTime(time)}
+                            autoPlay
+                        />
+                    </div>
+
+                    {/* 4. Правая часть для обычного режима */}
+                    {!isFullscreen && (
+                        <div className="flex items-center gap-2 shrink-0">
+                            {isSupported && (
                                 <button
-                                    onClick={closePlayer}
-                                    title="Закрыть плеер"
-                                    aria-label="Закрыть плеер"
-                                    className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                                    onClick={togglePip}
+                                    title="Вынести плеер поверх всех окон"
+                                    aria-label="Вынести плеер поверх всех окон"
+                                    className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
                                 >
                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h12a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                     </svg>
                                 </button>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Полноэкранный режим с текстом песни (Spotify Style) */}
-            {isLyricsOpen && (
-                <div className="fixed inset-0 z-[120] bg-[#09090b]/95 backdrop-blur-3xl flex flex-col items-center justify-between p-6 sm:p-10 animate-in fade-in duration-300">
-                    <div
-                        className="absolute inset-0 -z-10 blur-[150px] opacity-40 pointer-events-none transition-all duration-1000"
-                        style={{ backgroundColor: ambientColor }}
-                    />
-
-                    {/* Шапка модалки */}
-                    <div className="max-w-5xl w-full flex items-center justify-between z-10 shrink-0">
-                        <div className="flex items-center gap-4">
-                            {coverSrc && (
-                                <img
-                                    src={coverSrc}
-                                    alt={currentTrack.title}
-                                    className="w-14 h-14 rounded-xl object-cover border border-white/10 shadow-2xl"
-                                />
                             )}
-                            <div>
-                                <h3 className="text-xl font-bold text-white tracking-tight">{currentTrack.title}</h3>
-                                <p className="text-sm text-zinc-400 font-medium">
-                                    {currentTrack.artist || "Неизвестный исполнитель"}
-                                </p>
-                            </div>
+
+                            <button
+                                onClick={closePlayer}
+                                title="Закрыть плеер"
+                                aria-label="Закрыть плеер"
+                                className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
-
-                        <button
-                            type="button"
-                            onClick={() => setIsLyricsOpen(false)}
-                            className="w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
-                        >
-                            ✕
-                        </button>
-                    </div>
-
-                    {/* Центрированный контент текста */}
-                    <div className="w-full max-w-4xl flex-1 flex items-center justify-center z-10 my-auto">
-                        {isLoadingLyrics ? (
-                            <div className="text-center text-zinc-400 animate-pulse text-xl font-semibold">
-                                Загрузка текста...
-                            </div>
-                        ) : (
-                            <LyricsView
-                                lrcString={lrcString}
-                                currentTime={currentTime}
-                                offset={0.3}
-                            />
-                        )}
-                    </div>
+                    )}
                 </div>
             )}
 
+            {/* Режим Picture-in-Picture */}
             {isPipOpen &&
                 renderPip(
-                    <div className="h-full w-full bg-[#18181b] text-white p-4 flex flex-col justify-between select-none font-sans relative overflow-hidden">
+                    <div className="h-full w-full bg-[#18181b]/90 text-white p-4 flex flex-col justify-between select-none font-sans relative overflow-hidden">
                         <div
-                            className="absolute inset-0 -z-10 blur-2xl opacity-50 pointer-events-none"
+                            className="absolute inset-0 -z-10 blur-2xl opacity-75 pointer-events-none"
                             style={{ backgroundColor: ambientColor }}
                         />
 
                         <div className="flex items-center justify-between z-10">
-                            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                            <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
                                 Сейчас играет
                             </span>
                             <button
                                 onClick={togglePip}
-                                className="text-zinc-400 hover:text-white text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                                className="text-zinc-300 hover:text-white text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
                             >
                                 Вернуть в окно
                             </button>
@@ -235,26 +264,18 @@ export const GlobalPlayer = () => {
 
                         <div className="flex items-center gap-4 my-auto z-10">
                             <div
-                                className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-[#27272a] border border-white/10 shadow-lg"
-                                style={{ boxShadow: `0 4px 20px ${ambientColor}40` }}
+                                className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-[#27272a] border border-white/15 shadow-lg"
+                                style={{ boxShadow: `0 4px 20px ${ambientColor}` }}
                             >
                                 {coverSrc ? (
-                                    <img
-                                        src={coverSrc}
-                                        alt={currentTrack.title}
-                                        className="w-full h-full object-cover"
-                                    />
+                                    <img src={coverSrc} alt={currentTrack.title} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-zinc-500">
-                                        🎵
-                                    </div>
+                                    <div className="w-full h-full flex items-center justify-center text-zinc-400">🎵</div>
                                 )}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <h4 className="text-base font-bold text-white truncate">
-                                    {currentTrack.title}
-                                </h4>
-                                <p className="text-xs text-zinc-400 truncate mt-0.5">
+                                <h4 className="text-base font-bold text-white truncate">{currentTrack.title}</h4>
+                                <p className="text-xs text-zinc-300 truncate mt-0.5">
                                     {currentTrack.artist || "Неизвестный исполнитель"}
                                 </p>
                             </div>

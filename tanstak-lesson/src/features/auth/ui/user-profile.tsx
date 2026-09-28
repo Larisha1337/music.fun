@@ -88,7 +88,8 @@ export const UserProfile = ({ user }: Props) => {
                 >
                     {avatarUrl ? (
                         <img
-                            src={`${MY_API_BASE}${avatarUrl}`}
+                            // было: src={`${MY_API_BASE}${avatarUrl}`}
+                            src={avatarUrl.startsWith('http') ? avatarUrl : `${MY_API_BASE}${avatarUrl}`}
                             alt={displayName}
                             className="w-full h-full object-cover"
                         />

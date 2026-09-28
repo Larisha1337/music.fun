@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { TrackActionsModal } from './track-actions-modal'
 import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
-import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal' // 👈 Наш новый импорт
+import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal'
+import {TrackLikeButton} from "@/features/tracks/ui/button/tracks-likes-button.tsx"; // 👈 Наш новый импорт
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
@@ -168,6 +169,8 @@ export const TrackList = ({
                                     </span>
                                 )}
                             </div>
+
+                            <TrackLikeButton trackId={track._id} />
 
                             {/* 👈 КНОПКА ДОБАВЛЕНИЯ В ПЛЕЙЛИСТ */}
                             <button

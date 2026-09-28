@@ -154,3 +154,21 @@ export const useDeletePlaylistMutation = () => {
         }
     })
 }
+
+// 💡 Хук для переключения лайка трека
+export const useToggleLikeQuery = () => {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: async (trackId: string) => {
+            const { data } = await api.post('/playlists/liked/toggle', { trackId })
+            return data
+        },
+        onSuccess: () => {
+            // Обновляем список плейлистов, чтобы у "Мне нравится" обновился список треков
+            queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
+            // Также инвалидируем общие данные плейлистов на случай, если открыт конкретный
+            queryClient.invalidateQueries({ queryKey: ['playlist'] })
+        }
+    })
+}

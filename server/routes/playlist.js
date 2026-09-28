@@ -32,7 +32,7 @@ router.use(authMiddleware)
 // 1. Получить МОИ плейлисты (для сайдбара)
 router.get('/', async (req, res) => {
     try {
-        const playlists = await Playlist.find({ ownerId: req.userId }, 'name coverUrl').sort({ createdAt: -1 })
+        const playlists = await Playlist.find({ ownerId: req.userId }, 'name coverUrl tracks').sort({ createdAt: -1 })
         res.status(200).json(playlists)
     } catch (error) {
         console.error(error)
@@ -83,17 +83,22 @@ router.post('/', upload.single('cover'), async (req, res) => {
     }
 })
 
-// 4. Обновить плейлист (название, описание и файл обложки)
+// 4. Обновить плейлист (название, описание, обложка и теперь порядок треков!)
 router.put('/:id', upload.single('cover'), async (req, res) => {
     try {
         const body = req.body || {}
-        const { name, description } = body
+        const { name, description, tracks } = body // 👈 принимаем tracks
 
         const updateData = {}
         if (name) updateData.name = name
         if (description !== undefined) updateData.description = description
 
-        // Если пришел файл через FormData
+        // Если передан новый массив треков (приходит из FormData как JSON-строка или массив)
+        if (tracks) {
+            updateData.tracks = typeof tracks === 'string' ? JSON.parse(tracks) : tracks
+        }
+
+        // Если пришел файл обложки через FormData
         if (req.file) {
             updateData.coverUrl = `/uploads/${req.file.filename}`
         } else if (body.coverUrl) {
@@ -161,6 +166,48 @@ router.delete('/:id/tracks/:trackId', async (req, res) => {
     } catch (error) {
         console.error(error)
         res.status(500).json({ message: 'Ошибка удаления трека' })
+    }
+})
+
+// 8. Лайк / Дизлайк трека (автоматически управляет системным плейлистом "Мне нравится")
+router.post('/liked/toggle', async (req, res) => {
+    try {
+        const { trackId } = req.body
+        if (!trackId) return res.status(400).json({ message: 'Нет ID трека' })
+
+        // Ищем или создаем системный плейлист "Мне нравится" для текущего юзера
+        let likedPlaylist = await Playlist.findOne({ ownerId: req.userId, name: 'Мне нравится' })
+
+        if (!likedPlaylist) {
+            likedPlaylist = await Playlist.create({
+                name: 'Мне нравится',
+                description: 'Ваши любимые треки',
+                ownerId: req.userId,
+                tracks: [],
+                isSystem: true // 👈 помечаем как системный
+            })
+        }
+
+        // Проверяем, есть ли трек уже в лайках
+        const isLiked = likedPlaylist.tracks.includes(trackId)
+
+        const updateOperation = isLiked
+            ? { $pull: { tracks: trackId } }   // Удаляем, если уже был лайк
+            : { $addToSet: { tracks: trackId } } // Добавляем, если не было
+
+        const updated = await Playlist.findOneAndUpdate(
+            { _id: likedPlaylist._id, ownerId: req.userId },
+            updateOperation,
+            { new: true }
+        ).populate('tracks')
+
+        res.status(200).json({
+            isLiked: !isLiked,
+            playlist: updated
+        })
+    } catch (error) {
+        console.error('Ошибка обработки лайка:', error)
+        res.status(500).json({ message: 'Ошибка сервера при лайке трека' })
     }
 })
 

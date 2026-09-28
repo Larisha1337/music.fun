@@ -9,7 +9,10 @@ const playlistSchema = new mongoose.Schema({
     tracks: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Track' }],
 
     // Привязываем к конкретному юзеру
-    ownerId: { type: String, required: true }
+    ownerId: { type: String, required: true },
+
+    // 👈 Дополнительный флаг для системных плейлистов (например, "Мне нравится")
+    isSystem: { type: Boolean, default: false }
 }, { timestamps: true })
 
 export default mongoose.model('Playlist', playlistSchema)

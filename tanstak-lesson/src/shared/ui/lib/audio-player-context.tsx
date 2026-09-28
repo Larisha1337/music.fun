@@ -17,11 +17,13 @@ type AudioPlayerContextType = {
     playlist: TrackInfo[];
     repeatMode: RepeatMode;
     isShuffle: boolean;
+    isFullscreen: boolean;
     playTrack: (track: TrackInfo, playlist?: TrackInfo[]) => void;
     playNext: () => void;
     playPrev: () => void;
     toggleRepeatMode: () => void;
     toggleShuffle: () => void;
+    toggleFullscreen: () => void;
     closePlayer: () => void;
 };
 
@@ -77,6 +79,12 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
     const [isShuffle, setIsShuffle] = useState<boolean>(() => {
         return localStorage.getItem('player-shuffle') === 'true';
     });
+
+    const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+    const toggleFullscreen = () => {
+        setIsFullscreen((prev) => !prev);
+    };
 
     const toggleRepeatMode = () => {
         setRepeatMode((prev) => {
@@ -173,11 +181,13 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
                 playlist,
                 repeatMode,
                 isShuffle,
+                isFullscreen,
                 playTrack,
                 playNext,
                 playPrev,
                 toggleRepeatMode,
                 toggleShuffle,
+                toggleFullscreen,
                 closePlayer,
             }}
         >

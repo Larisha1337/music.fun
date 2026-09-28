@@ -47,7 +47,7 @@ export const CustomAudioPlayer = ({
                                       autoPlay = true,
                                       repeatMode = 'off',
                                       isShuffle = false,
-                                      onTimeUpdate, // 👈 1. ДОБАВЛЕНО СУДА
+                                      onTimeUpdate,
                                       onToggleRepeat,
                                       onToggleShuffle,
                                       onEnded,
@@ -218,7 +218,7 @@ export const CustomAudioPlayer = ({
         if (audioRef.current) {
             const time = audioRef.current.currentTime;
             setCurrentTime(time);
-            onTimeUpdate?.(time); // 👈 2. ПЕРЕДАЕМ ВРЕМЯ НАРУЖУ В GLOBALPLAYER
+            onTimeUpdate?.(time);
             localStorage.setItem(`player-time-${src}`, String(time));
         }
     };
@@ -287,7 +287,7 @@ export const CustomAudioPlayer = ({
         if (audioRef.current) {
             audioRef.current.currentTime = newTime;
             setCurrentTime(newTime);
-            onTimeUpdate?.(newTime); // 👈 ОБНОВЛЯЕМ ВРЕМЯ ПРИ ПЕРЕТАСКИВАНИИ ПОЛЗУНКА
+            onTimeUpdate?.(newTime);
         }
     };
 
@@ -413,9 +413,22 @@ export const CustomAudioPlayer = ({
                     value={currentTime}
                     onChange={handleProgressChange}
                     style={{
-                        background: `linear-gradient(to right, ${ambientColor} ${progressPercent}%, #3f3f46 ${progressPercent}%)`
+                        background: `linear-gradient(to right, ${ambientColor} ${progressPercent}%, #3f3f46 ${progressPercent}%)`,
+                        ["--thumb-color" as any]: ambientColor,
                     }}
-                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400 focus:outline-none transition-all"
+                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-3.5
+                        [&::-webkit-slider-thumb]:h-3.5
+                        [&::-webkit-slider-thumb]:rounded-[4px]
+                        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+                        [&::-webkit-slider-thumb]:shadow-md
+                        [&::-moz-range-thumb]:appearance-none
+                        [&::-moz-range-thumb]:w-3.5
+                        [&::-moz-range-thumb]:h-3.5
+                        [&::-moz-range-thumb]:rounded-[4px]
+                        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
+                        [&::-moz-range-thumb]:border-0"
                 />
                 <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
                     <span>{formatTime(currentTime)}</span>
@@ -450,6 +463,19 @@ export const CustomAudioPlayer = ({
                         </svg>
                     )}
                 </button>
+                {/*<input*/}
+                {/*    type="range"*/}
+                {/*    min={0}*/}
+                {/*    max={1}*/}
+                {/*    step={0.01}*/}
+                {/*    value={isMuted ? 0 : volume}*/}
+                {/*    onChange={handleVolumeChange}*/}
+                {/*    style={{*/}
+                {/*        background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`,*/}
+                {/*        accentColor: ambientColor*/}
+                {/*    }}*/}
+                {/*    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-zinc-300 hover:accent-white focus:outline-none transition-all"*/}
+                {/*/>*/}
                 <input
                     type="range"
                     min={0}
@@ -458,9 +484,22 @@ export const CustomAudioPlayer = ({
                     value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
                     style={{
-                        background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`
+                        background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`,
+                        ["--thumb-color" as any]: ambientColor,
                     }}
-                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-zinc-300 hover:accent-white focus:outline-none transition-all"
+                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-3.5
+                        [&::-webkit-slider-thumb]:h-3.5
+                        [&::-webkit-slider-thumb]:rounded-[4px]
+                        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+                        [&::-webkit-slider-thumb]:shadow-md
+                        [&::-moz-range-thumb]:appearance-none
+                        [&::-moz-range-thumb]:w-3.5
+                        [&::-moz-range-thumb]:h-3.5
+                        [&::-moz-range-thumb]:rounded-[4px]
+                        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
+                        [&::-moz-range-thumb]:border-0"
                 />
             </div>
         </div>

@@ -3,7 +3,6 @@ import { useForm } from "react-hook-form";
 import type { FormValues, Props } from "./type/edit-type.ts";
 import { useEditPlaylistMutation } from "../../api/use-edit-mutation.ts";
 import { checkImageDimensions } from "../../api/check-square-images.ts";
-import {useDeletePlaylistCoverMutation} from "../../../../tracks/api/delete/use-delete-playlist-cover-mutation.ts";
 
 export const EditPlaylistForm = ({
                                      playlistId,
@@ -19,7 +18,6 @@ export const EditPlaylistForm = ({
         handleSubmit,
         register,
         watch,
-        setValue,
         setError,
         clearErrors,
         formState: { isSubmitting, errors }
@@ -30,11 +28,8 @@ export const EditPlaylistForm = ({
         }
     });
 
-    const { mutate: deleteCover, isPending: isDeletingCover } = useDeletePlaylistCoverMutation(onSuccess);
 
-    const handleDeleteCover = () => {
-        deleteCover(playlistId);
-    };
+
 
     const { mutate, isPending } = useEditPlaylistMutation(playlistId, onSuccess);
     const isLoading = isPending || isSubmitting;
@@ -89,13 +84,6 @@ export const EditPlaylistForm = ({
         });
     };
 
-    const handleClearSelectedFile = () => {
-        setValue("file", null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
-        clearErrors("file");
-    };
 
     return (
         <form
@@ -148,33 +136,7 @@ export const EditPlaylistForm = ({
                             className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isLoading}
-                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
-                            >
-                                Изменить
-                            </button>
-                            {selectedFile ? (
-                                <button
-                                    type="button"
-                                    onClick={handleClearSelectedFile}
-                                    disabled={isLoading}
-                                    className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
-                                >
-                                    Сбросить выбор
-                                </button>
-                            ) : initialCoverUrl ? (
-                                <button
-                                    type="button"
-                                    onClick={handleDeleteCover}
-                                    disabled={isLoading || isDeletingCover}
-                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
-                                >
-                                    {isDeletingCover ? "Удаление..." : "Удалить"}
-                                </button>
-                            ) : null}
+
                         </div>
                     </div>
                 ) : (

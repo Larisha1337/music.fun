@@ -1,8 +1,7 @@
 import express from 'express'
-import fs from 'fs'
-import path from 'path'
 import { uploadAvatar } from '../middleware/upload.js'
 import authMiddleware from '../middleware/auth.js'
+import { uploadToR2, deleteFromR2 } from '../service/r2.js'
 import Avatar from '../models/Avatar.js'
 import User from '../models/User.js' // <-- Добавили импорт модели юзера
 
@@ -15,9 +14,9 @@ router.post('/avatar', authMiddleware, uploadAvatar.single('avatar'), async (req
             return res.status(400).json({ message: 'Файл не загружен' })
         }
 
-        const avatarUrl = `/uploads/avatars/${req.file.filename}`
-
         const existingAvatar = await Avatar.findOne({ userId: req.userId })
+
+        const avatarUrl = await uploadToR2(req.file, 'avatars')
 
         const avatar = await Avatar.findOneAndUpdate(
             { userId: req.userId },
@@ -26,10 +25,7 @@ router.post('/avatar', authMiddleware, uploadAvatar.single('avatar'), async (req
         )
 
         if (existingAvatar?.avatarUrl) {
-            const oldFilePath = path.join('uploads/avatars', path.basename(existingAvatar.avatarUrl))
-            fs.unlink(oldFilePath, (err) => {
-                if (err) console.error('Не удалось удалить старый файл:', err)
-            })
+            await deleteFromR2(existingAvatar.avatarUrl)
         }
 
         res.json({ avatarUrl: avatar.avatarUrl })
