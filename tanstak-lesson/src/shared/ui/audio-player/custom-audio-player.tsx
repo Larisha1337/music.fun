@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import { AudioVisualizer } from "./audio-visualizer";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
+import {TrackLikeButton} from "@/features/tracks/ui/button/tracks-likes-button.tsx";
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -16,6 +17,7 @@ type Props = {
     onTimeUpdate?: (time: number) => void;
     onToggleRepeat?: () => void;
     onToggleShuffle?: () => void;
+    trackId?: string;
     onEnded?: () => void;
     onNext?: () => void;
     onPrev?: () => void;
@@ -52,6 +54,7 @@ export const CustomAudioPlayer = ({
                                       onTimeUpdate,
                                       onToggleRepeat,
                                       onToggleShuffle,
+                                      trackId,
                                       onEnded,
                                       onNext,
                                       onPrev
@@ -61,6 +64,7 @@ export const CustomAudioPlayer = ({
     const [isBuffering, setIsBuffering] = useState(false);
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
+
 
     const [volume, setVolume] = useState<number>(() => {
         const savedVolume = localStorage.getItem('player-volume');
@@ -305,7 +309,7 @@ export const CustomAudioPlayer = ({
     const volumePercent = (isMuted ? 0 : volume) * 100;
 
     return (
-        <div className="flex items-center gap-3 sm:gap-4 w-full bg-transparent">
+        <div className="flex flex-col w-full gap-1 bg-transparent">
             <audio
                 ref={audioRef}
                 src={src}
@@ -320,94 +324,9 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                {onToggleShuffle && (
-                    <button
-                        onClick={onToggleShuffle}
-                        type="button"
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
-                            isShuffle ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
-                        }`}
-                        title={isShuffle ? "Случайный порядок (Включен)" : "Случайный порядок (Выключен)"}
-                        aria-label="Случайный порядок"
-                    >
-                        <ShuffleIcon className="w-4 h-4" />
-                    </button>
-                )}
-
-                {onPrev && (
-                    <button
-                        onClick={onPrev}
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                        title="Предыдущий трек"
-                        aria-label="Предыдущий трек"
-                    >
-                        <PrevIcon className="w-4 h-4" />
-                    </button>
-                )}
-
-                <button
-                    onClick={togglePlay}
-                    type="button"
-                    disabled={isBuffering && !duration}
-                    className="w-10 h-10 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/70 text-white rounded-full transition-all shrink-0 shadow-md cursor-pointer"
-                    title={isPlaying ? "Пауза" : "Воспроизвести"}
-                    aria-label={isPlaying ? "Пауза" : "Воспроизвести"}
-                >
-                    {isBuffering ? (
-                        <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                    ) : isPlaying ? (
-                        <PauseIcon className="w-4 h-4" />
-                    ) : (
-                        <PlayIcon className="w-4 h-4 translate-x-[1px]" />
-                    )}
-                </button>
-
-                {onNext && (
-                    <button
-                        onClick={onNext}
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                        title="Следующий трек"
-                        aria-label="Следующий трек"
-                    >
-                        <NextIcon className="w-4 h-4" />
-                    </button>
-                )}
-
-                {onToggleRepeat && (
-                    <button
-                        onClick={onToggleRepeat}
-                        type="button"
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative ${
-                            repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
-                        }`}
-                        title={
-                            repeatMode === 'one'
-                                ? "Повтор текущего трека"
-                                : repeatMode === 'all'
-                                    ? "Повтор всей очереди"
-                                    : "Повтор выключен"
-                        }
-                        aria-label="Повтор"
-                    >
-                        {repeatMode === 'one' ? (
-                            <RepeatOneIcon className="w-4 h-4" />
-                        ) : (
-                            <RepeatIcon className="w-4 h-4" />
-                        )}
-                        {repeatMode === 'all' && (
-                            <span className="absolute bottom-1.5 w-1 h-1 bg-indigo-400 rounded-full" />
-                        )}
-                    </button>
-                )}
-            </div>
-
-            <div className="flex flex-col flex-1 gap-1">
+<div></div>
+            {/* 1. Ползунок времени и тайминги */}
+            <div className=" flex-col w-full gap-2">
                 <input
                     type="range"
                     min={0}
@@ -420,21 +339,21 @@ export const CustomAudioPlayer = ({
                         ["--thumb-color" as any]: ambientColor,
                     }}
                     className={`w-full h-1.5 rounded-lg appearance-none focus:outline-none transition-all
-        ${!isSeekable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-        disabled:opacity-40 disabled:cursor-not-allowed
-        [&::-webkit-slider-thumb]:appearance-none
-        [&::-webkit-slider-thumb]:w-3.5
-        [&::-webkit-slider-thumb]:h-3.5
-        [&::-webkit-slider-thumb]:rounded-[4px]
-        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
-        [&::-webkit-slider-thumb]:shadow-md
-        [&::-webkit-slider-thumb]:disabled:cursor-not-allowed
-        [&::-moz-range-thumb]:appearance-none
-        [&::-moz-range-thumb]:w-3.5
-        [&::-moz-range-thumb]:h-3.5
-        [&::-moz-range-thumb]:rounded-[4px]
-        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
-        [&::-moz-range-thumb]:border-0`}
+                        ${!isSeekable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+                        disabled:opacity-40 disabled:cursor-not-allowed
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-3.5
+                        [&::-webkit-slider-thumb]:h-3.5
+                        [&::-webkit-slider-thumb]:rounded-[4px]
+                        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+                        [&::-webkit-slider-thumb]:shadow-md
+                        [&::-webkit-slider-thumb]:disabled:cursor-not-allowed
+                        [&::-moz-range-thumb]:appearance-none
+                        [&::-moz-range-thumb]:w-3.5
+                        [&::-moz-range-thumb]:h-3.5
+                        [&::-moz-range-thumb]:rounded-[4px]
+                        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
+                        [&::-moz-range-thumb]:border-0`}
                 />
                 <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
                     <span>{formatTime(currentTime)}</span>
@@ -442,72 +361,144 @@ export const CustomAudioPlayer = ({
                 </div>
             </div>
 
-            <div className="hidden md:flex items-center shrink-0">
-                <AudioVisualizer
-                    audioRef={audioRef}
-                    isPlaying={isPlaying}
-                    color={ambientColor}
-                />
-            </div>
+            {/* 2. Нижняя панель: слева визуализатор/пусто, по центру кнопки, справа громкость */}
+            <div className="flex items-center justify-between w-full">
+                <div className="hidden md:flex items-center shrink-0">
+                    <AudioVisualizer
+                        audioRef={audioRef}
+                        isPlaying={isPlaying}
+                        color={ambientColor}
+                    />
+                </div>
 
-            <div className="hidden sm:flex items-center gap-2 w-24 shrink-0">
-                <button
-                    onClick={toggleMute}
-                    className="text-zinc-400 hover:text-zinc-100 transition-colors focus:outline-none cursor-pointer"
-                    title={isMuted ? "Включить звук" : "Выключить звук"}
-                    aria-label={isMuted ? "Включить звук" : "Выключить звук"}
-                >
-                    {isMuted || volume === 0 ? (
-                        <svg className="w-5 h-5 fill-current" viewBox="0 0 16 16">
-                            <path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06zM10.707 5.293a.5.5 0 0 1 .707 0L13 6.707l1.586-1.414a.5.5 0 0 1 .708.707L13.707 7.5l1.587 1.586a.5.5 0 0 1-.708.708L13 8.207l-1.586 1.415a.5.5 0 0 1-.707-.708L12.293 7.5l-1.586-1.586a.5.5 0 0 1 0-.707z"/>
-                        </svg>
-                    ) : (
-                        <svg className="w-5 h-5 fill-current" viewBox="0 0 16 16">
-                            <path d="M11.536 14.01A8.47 8.47 0 0 0 14.026 8a8.47 8.47 0 0 0-2.49-6.01l-.708.707A7.48 7.48 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/>
-                            <path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.48 5.48 0 0 1 11.025 8a5.48 5.48 0 0 1-1.61 3.89l.706.706z"/>
-                            <path d="M8.707 11.182A4.5 4.5 0 0 0 10.025 8a4.5 4.5 0 0 0-1.318-3.182L8 5.525A3.5 3.5 0 0 1 9.025 8 3.5 3.5 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/>
-                        </svg>
+                {/* Центр: все кнопки управления в одну строчку */}
+                <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1">
+                    {onToggleShuffle && (
+                        <button
+                            onClick={onToggleShuffle}
+                            type="button"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+                                isShuffle ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
+                            }`}
+                            title="Случайный порядок"
+                        >
+                            <ShuffleIcon className="w-4 h-4" />
+                        </button>
                     )}
-                </button>
-                {/*<input*/}
-                {/*    type="range"*/}
-                {/*    min={0}*/}
-                {/*    max={1}*/}
-                {/*    step={0.01}*/}
-                {/*    value={isMuted ? 0 : volume}*/}
-                {/*    onChange={handleVolumeChange}*/}
-                {/*    style={{*/}
-                {/*        background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`,*/}
-                {/*        accentColor: ambientColor*/}
-                {/*    }}*/}
-                {/*    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-zinc-300 hover:accent-white focus:outline-none transition-all"*/}
-                {/*/>*/}
-                <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={isMuted ? 0 : volume}
-                    onChange={handleVolumeChange}
-                    style={{
-                        background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`,
-                        ["--thumb-color" as any]: ambientColor,
-                    }}
-                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-3.5
-                        [&::-webkit-slider-thumb]:h-3.5
-                        [&::-webkit-slider-thumb]:rounded-[4px]
-                        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
-                        [&::-webkit-slider-thumb]:shadow-md
-                        [&::-moz-range-thumb]:appearance-none
-                        [&::-moz-range-thumb]:w-3.5
-                        [&::-moz-range-thumb]:h-3.5
-                        [&::-moz-range-thumb]:rounded-[4px]
-                        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
-                        [&::-moz-range-thumb]:border-0"
-                />
+
+                    {onPrev && (
+                        <button
+                            onClick={onPrev}
+                            type="button"
+                            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                            title="Предыдущий трек"
+                        >
+                            <PrevIcon className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    <button
+                        onClick={togglePlay}
+                        type="button"
+                        disabled={isBuffering && !duration}
+                        className="w-10 h-10 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/70 text-white rounded-full transition-all shrink-0 shadow-md cursor-pointer"
+                        title={isPlaying ? "Пауза" : "Воспроизвести"}
+                    >
+                        {isBuffering ? (
+                            <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                        ) : isPlaying ? (
+                            <PauseIcon className="w-4 h-4" />
+                        ) : (
+                            <PlayIcon className="w-4 h-4 translate-x-[1px]" />
+                        )}
+                    </button>
+
+                    {onNext && (
+                        <button
+                            onClick={onNext}
+                            type="button"
+                            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                            title="Следующий трек"
+                        >
+                            <NextIcon className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {onToggleRepeat && (
+                        <button
+                            onClick={onToggleRepeat}
+                            type="button"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative ${
+                                repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
+                            }`}
+                            title="Повтор"
+                        >
+                            {repeatMode === 'one' ? (
+                                <RepeatOneIcon className="w-4 h-4" />
+                            ) : (
+                                <RepeatIcon className="w-4 h-4" />
+                            )}
+                            {repeatMode === 'all' && (
+                                <span className="absolute bottom-1.5 w-1 h-1 bg-indigo-400 rounded-full" />
+                            )}
+                        </button>
+                    )}
+
+                    {trackId && (
+                        <div className="flex items-center shrink-0">
+                            <TrackLikeButton trackId={trackId} />
+                        </div>
+                    )}
+                </div>
+
+                {/* Правая часть: Громкость */}
+                <div className="hidden sm:flex items-center gap-2 w-24 shrink-0 justify-end">
+                    <button
+                        onClick={toggleMute}
+                        className="text-zinc-400 hover:text-zinc-100 transition-colors focus:outline-none cursor-pointer"
+                        title="Звук"
+                    >
+                        {isMuted || volume === 0 ? (
+                            <svg className="w-5 h-5 fill-current" viewBox="0 0 16 16">
+                                <path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06zM10.707 5.293a.5.5 0 0 1 .707 0L13 6.707l1.586-1.414a.5.5 0 0 1 .708.707L13.707 7.5l1.587 1.586a.5.5 0 0 1-.708.708L13 8.207l-1.586 1.415a.5.5 0 0 1-.707-.708L12.293 7.5l-1.586-1.586a.5.5 0 0 1 0-.707z"/>
+                            </svg>
+                        ) : (
+                            <svg className="w-5 h-5 fill-current" viewBox="0 0 16 16">
+                                <path d="M11.536 14.01A8.47 8.47 0 0 0 14.026 8a8.47 8.47 0 0 0-2.49-6.01l-.708.707A7.48 7.48 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/>
+                                <path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.48 5.48 0 0 1 11.025 8a5.48 5.48 0 0 1-1.61 3.89l.706.706z"/>
+                                <path d="M8.707 11.182A4.5 4.5 0 0 0 10.025 8a4.5 4.5 0 0 0-1.318-3.182L8 5.525A3.5 3.5 0 0 1 9.025 8 3.5 3.5 0 0 1 8 10.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/>
+                            </svg>
+                        )}
+                    </button>
+                    <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={isMuted ? 0 : volume}
+                        onChange={handleVolumeChange}
+                        style={{
+                            background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`,
+                            ["--thumb-color" as any]: ambientColor,
+                        }}
+                        className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all
+                            [&::-webkit-slider-thumb]:appearance-none
+                            [&::-webkit-slider-thumb]:w-3.5
+                            [&::-webkit-slider-thumb]:h-3.5
+                            [&::-webkit-slider-thumb]:rounded-[4px]
+                            [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+                            [&::-webkit-slider-thumb]:shadow-md
+                            [&::-moz-range-thumb]:appearance-none
+                            [&::-moz-range-thumb]:w-3.5
+                            [&::-moz-range-thumb]:h-3.5
+                            [&::-moz-range-thumb]:rounded-[4px]
+                            [&::-moz-range-thumb]:bg-[var(--thumb-color)]
+                            [&::-moz-range-thumb]:border-0"
+                    />
+                </div>
             </div>
         </div>
-    );
-};
+    )}

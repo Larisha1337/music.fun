@@ -67,7 +67,7 @@ export const GlobalPlayer = () => {
 
     if (!currentTrack) return null;
 
-// 1. Проверяем, есть ли реальный загруженный файл в R2
+    // 1. Проверяем, есть ли реальный загруженный файл в R2
     const hasCustomFile = Boolean(
         currentTrack?.fileUrl &&
         currentTrack.fileUrl.trim() !== "" &&
@@ -89,7 +89,7 @@ export const GlobalPlayer = () => {
                     className={
                         isFullscreen
                             ? "fixed inset-0 w-screen h-screen z-[9999] bg-[#09090b]/85 backdrop-blur-3xl flex flex-col items-center justify-between p-6 sm:p-10 text-white overflow-hidden transition-all duration-300"
-                            : "fixed bottom-0 left-0 right-0 z-[100] bg-[#18181b]/75 backdrop-blur-xl border-t border-white/15 px-4 py-2 flex flex-row items-center gap-4 transition-all duration-300"
+                            : "fixed bottom-0 left-0 right-0 z-[100] bg-[#18181b]/75 backdrop-blur-xl border-t border-white/15 px-4 py-3 flex flex-row items-center justify-between gap-4 transition-all duration-300"
                     }
                 >
                     {/* Сочное фоновое свечение */}
@@ -174,7 +174,7 @@ export const GlobalPlayer = () => {
                     {!isFullscreen && (
                         <div
                             onClick={toggleFullscreen}
-                            className="flex items-center gap-3 w-full sm:w-1/4 min-w-0 shrink-0 cursor-pointer group"
+                            className="flex items-center gap-3 w-1/4 min-w-0 shrink-0 cursor-pointer group"
                             title="Развернуть во весь экран"
                         >
                             <div
@@ -200,9 +200,13 @@ export const GlobalPlayer = () => {
                         </div>
                     )}
 
-                    {/* 🌟 3. ЕДИНСТВЕННЫЙ ЭКЗЕМПЛЯР ПЛЕЕРА */}
+                    {/* 🌟 3. ЦЕНТРАЛЬНЫЙ БЛОК ПЛЕЕРА */}
                     <div
-                        className={isFullscreen ? "w-full max-w-4xl mx-auto shrink-0 pt-3 pb-2" : "flex-1 w-full h-16 flex items-center"}
+                        className={
+                            isFullscreen
+                                ? "w-full max-w-xl mx-auto shrink-0 pt-3 pb-2 flex flex-col items-center"
+                                : "flex-1 max-w-2xl mx-auto flex flex-col justify-center gap-1 px-4"
+                        }
                         style={isFullscreen ? ({ "--accent-color": ambientColor } as React.CSSProperties) : undefined}
                     >
                         <CustomAudioPlayer
@@ -215,6 +219,7 @@ export const GlobalPlayer = () => {
                             isShuffle={isShuffle}
                             onToggleRepeat={toggleRepeatMode}
                             onToggleShuffle={toggleShuffle}
+                            trackId={currentTrack._id}
                             onNext={playNext}
                             onPrev={playPrev}
                             onEnded={playNext}
@@ -223,9 +228,9 @@ export const GlobalPlayer = () => {
                         />
                     </div>
 
-                    {/* 4. Правая часть для обычного режима */}
+                    {/* 4. Правая часть для обычного режима (громкость и закрытие) */}
                     {!isFullscreen && (
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-3 w-1/4 justify-end shrink-0">
                             {isSupported && (
                                 <button
                                     onClick={togglePip}
@@ -243,7 +248,7 @@ export const GlobalPlayer = () => {
                                 onClick={closePlayer}
                                 title="Закрыть плеер"
                                 aria-label="Закрыть плеер"
-                                className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
+                                className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
