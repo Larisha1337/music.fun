@@ -1,21 +1,7 @@
-// src/service/music-finder.js
-import { Innertube } from 'youtubei.js';
-
-let youtubeClient = null;
-
-const initialize = async () => {
-    try {
-        if (!youtubeClient) {
-            // 👈 Правильная инициализация Innertube
-            youtubeClient = await Innertube.create();
-        }
-    } catch (error) {
-        console.error('[MusicFinder] Ошибка инициализации YouTube клиента:', error);
-    }
-};
+import youtubedl from 'yt-dlp-exec';
 
 /**
- * 1. Ищем трек в Deezer (бесплатно, без ключей)
+ * 1. Ищем трек в Deezer (для получения обложки, альбома и правильного названия)
  */
 export const findTrackInDeezer = async (title, artist) => {
     try {
@@ -43,67 +29,40 @@ export const findTrackInDeezer = async (title, artist) => {
 };
 
 /**
- * 2. Получаем прямую ссылку на аудиопоток с YouTube через Innertube
+ * 2. Получаем живую прямую ссылку на ПОЛНЫЙ аудиопоток через yt-dlp-exec
  */
 export const getYoutubeAudioStreamUrl = async (searchQuery) => {
-    await initialize();
-
-    if (!youtubeClient) {
-        throw new Error('YouTube клиент не инициализирован');
-    }
-
     try {
-        const searchResults = await youtubeClient.search(searchQuery, { type: 'video' });
-        if (!searchResults.videos || searchResults.videos.length === 0) {
-            throw new Error('Видео не найдено на YouTube');
+        // yt-dlp-exec выполняет поиск и возвращает прямую ссылку (-g) на лучший аудиопоток (-f bestaudio)
+        const result = await youtubedl.exec(`ytsearch1:${searchQuery}`, {
+            g: true,
+            f: 'bestaudio'
+        });
+
+        const streamUrl = result.stdout.trim().split('\n')[0];
+
+        if (!streamUrl) {
+            throw new Error('yt-dlp не смог извлечь ссылку на поток');
         }
 
-        const video = searchResults.videos[0];
-        console.log(`[MusicFinder] Нашел видео: "${video.title?.text || video.title}" (${video.id})`);
-
-        const videoInfo = await youtubeClient.getBasicInfo(video.id);
-
-        const audioFormat = videoInfo.streaming_data?.formats
-            .filter(f => f.mime_type?.includes('audio') && !f.mime_type?.includes('video'))
-            .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-
-        if (!audioFormat) {
-            throw new Error('Не удалось найти аудиопоток для этого видео');
-        }
-
-        if (audioFormat.url) {
-            return audioFormat.url;
-        } else {
-            const nsig = videoInfo.player_config?.signature_timestamp
-                ? await youtubeClient.session.player.decryptNSignature(
-                    audioFormat.signature_cipher || audioFormat.cipher,
-                    videoInfo.player_config.signature_timestamp
-                )
-                : null;
-
-            const url = new URL(audioFormat.signature_cipher || audioFormat.cipher);
-            url.searchParams.set('alr', 'yes');
-            if (nsig) url.searchParams.set('n', nsig);
-
-            return url.toString();
-        }
+        return streamUrl;
     } catch (error) {
-        console.error('[MusicFinder] Ошибка получения аудио с YouTube:', error);
+        console.error('[MusicFinder] Ошибка yt-dlp:', error.message);
         throw error;
     }
 };
 
 /**
- * 3. Связка: Deezer (метаданные) -> YouTube (аудио)
+ * 3. Связка: Deezer (метаданные) -> yt-dlp (полный трек)
  */
 export const findAndStreamTrack = async (title, artist) => {
     let metadata = await findTrackInDeezer(title, artist);
 
     if (!metadata) {
-        metadata = { title, artist, coverUrl: null };
+        metadata = { title, artist, coverUrl: null, duration_ms: 180000 };
     }
 
-    const youtubeQuery = `${metadata.artist} - ${metadata.title} (Audio)`;
+    const youtubeQuery = `${metadata.artist} - ${metadata.title} Audio`;
     const streamUrl = await getYoutubeAudioStreamUrl(youtubeQuery);
 
     return {

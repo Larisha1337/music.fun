@@ -67,8 +67,8 @@ export const GlobalPlayer = () => {
 
     if (!currentTrack) return null;
 
-    const audioSrc = getMediaUrl(currentTrack.fileUrl);
-    if (!audioSrc) return null;
+    // 👈 ИСПОЛЬЗУЕМ БЭКЕНД-ПРОКСИ СТРИМИНГ ПО ID ТРЕКА
+    const audioSrc = `${MY_API_BASE}/api/tracks/${currentTrack._id}/stream`;
 
     return (
         <>
@@ -158,7 +158,7 @@ export const GlobalPlayer = () => {
                         </>
                     )}
 
-                    {/* 2. Левая часть для обычного режима (исходный нормальный размер) */}
+                    {/* 2. Левая часть для обычного режима */}
                     {!isFullscreen && (
                         <div
                             onClick={toggleFullscreen}
@@ -188,7 +188,7 @@ export const GlobalPlayer = () => {
                         </div>
                     )}
 
-                    {/* 🌟 3. ЕДИНСТВЕННЫЙ ЭКЗЕМПЛЯР ПЛЕЕРА (НЕ РАЗМОНТИРУЕТСЯ — ПОЛЗУНОК ОГРАНИЧЕН ПО ВЫСОТЕ) */}
+                    {/* 🌟 3. ЕДИНСТВЕННЫЙ ЭКЗЕМПЛЯР ПЛЕЕРА */}
                     <div
                         className={isFullscreen ? "w-full max-w-4xl mx-auto shrink-0 pt-3 pb-2" : "flex-1 w-full h-16 flex items-center"}
                         style={isFullscreen ? ({ "--accent-color": ambientColor } as React.CSSProperties) : undefined}

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import {S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand} from '@aws-sdk/client-s3'
 
 const r2Client = new S3Client({
     region: 'auto',
@@ -49,4 +49,29 @@ export const deleteFromR2 = async (fileUrl) => {
     } catch (error) {
         console.error('[R2 Delete Error]:', error)
     }
+}
+
+/**
+ * Получить потоковый файл из R2 с поддержкой Range-запросов (для полноценного воспроизведения аудио)
+ * @param {string} fileUrl - полный URL файла в R2 или его ключ
+ * @param {string} [rangeHeader] - заголовок Range от браузера
+ */
+export const getFileStreamFromR2 = async (fileUrl, rangeHeader) => {
+    if (!fileUrl) return null
+
+    // Извлекаем ключ из публичного URL R2
+    let key = fileUrl
+    if (fileUrl.startsWith('http')) {
+        if (!fileUrl.startsWith(process.env.R2_PUBLIC_DOMAIN)) return null
+        key = fileUrl.replace(`${process.env.R2_PUBLIC_DOMAIN}/`, '')
+    }
+
+    const command = new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: key,
+        ...(rangeHeader ? { Range: rangeHeader } : {})
+    })
+
+    const response = await r2Client.send(command)
+    return response // Вернет объект с .Body (ReadableStream), .ContentType, .ContentRange и т.д.
 }

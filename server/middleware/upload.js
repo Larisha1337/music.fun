@@ -60,3 +60,27 @@ export const uploadTrackCover = multer({
         }
     }
 })
+
+// 🌟 Универсальный multer для одновременной загрузки аудио и обложки трека
+export const uploadTrackWithCover = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 }, // Общий лимит до 50 МБ (с запасом для аудио)
+    fileFilter: (req, file, cb) => {
+        if (file.fieldname === 'file') {
+            const isMp3 = file.mimetype === 'audio/mpeg' || file.originalname.toLowerCase().endsWith('.mp3')
+            if (isMp3) {
+                cb(null, true)
+            } else {
+                cb(new Error('Аудиофайл должен быть в формате mp3'))
+            }
+        } else if (file.fieldname === 'cover') {
+            if (file.mimetype.startsWith('image/')) {
+                cb(null, true)
+            } else {
+                cb(new Error('Обложка должна быть изображением'))
+            }
+        } else {
+            cb(new Error('Неизвестное поле файла'))
+        }
+    }
+})

@@ -1,7 +1,7 @@
 import Track from '../models/Track.js'
 import User from '../models/User.js'
-import { uploadToR2, deleteFromR2 } from '../service/r2.js'
-import { findAndStreamTrack } from '../service/music-finder.js'
+import { uploadToR2, deleteFromR2, getFileStreamFromR2 } from '../service/r2.js'
+import youtubedl from 'yt-dlp-exec'
 
 // 1. Глобальная лента (с авторами)
 export const getAllTracks = async (req, res) => {
@@ -34,7 +34,7 @@ export const getAllTracks = async (req, res) => {
     }
 }
 
-// 2. Мои треки (теперь тоже с authorEmail)
+// 2. Мои треки
 export const getMyTracks = async (req, res) => {
     try {
         const userId = req.userId || req.user?.id
@@ -48,14 +48,14 @@ export const getMyTracks = async (req, res) => {
                 userId: userId,
                 isSeed: { $ne: true }
             }).sort({ createdAt: -1 }).lean(),
-            User.findById(userId).select('email name').lean() // 👈 Достаем автора
+            User.findById(userId).select('email name').lean()
         ])
 
         const authorName = user ? (user.name || user.email) : 'Неизвестный автор'
 
         const tracksWithAuthor = tracks.map(t => ({
             ...t,
-            authorEmail: authorName // 👈 Добавляем authorEmail во все треки
+            authorEmail: authorName
         }))
 
         res.json({ tracks: tracksWithAuthor })
@@ -65,7 +65,7 @@ export const getMyTracks = async (req, res) => {
     }
 }
 
-// 3. Найти и создать трек через Deezer + YouTube
+// 3. Создание трека с возможностью загрузить свой MP3 и обложку
 export const createTrack = async (req, res) => {
     try {
         const userId = req.userId || req.user?.id
@@ -74,26 +74,42 @@ export const createTrack = async (req, res) => {
         }
 
         const { title, artist } = req.body;
+        const audioFile = req.files?.file?.[0];
+        const coverFile = req.files?.cover?.[0];
 
-        if (!title || !artist) {
-            return res.status(400).json({ message: 'Название и исполнитель обязательны' })
+        if (!title) {
+            return res.status(400).json({ message: 'Название трека обязательно' })
+        }
+
+        let fileUrl = '';
+        let isStreamed = true;
+
+        // Если пользователь прикрепил свой MP3 файл
+        if (audioFile) {
+            fileUrl = await uploadToR2(audioFile, 'tracks');
+            isStreamed = false; // Это локальный файл, стримить через yt-dlp не нужно!
+        } else {
+            // Если файл не прикрепили, это трек для стриминга по названию
+            isStreamed = true;
+        }
+
+        let coverUrl = null;
+        if (coverFile) {
+            coverUrl = await uploadToR2(coverFile, 'track-covers');
         }
 
         const user = await User.findById(userId).select('email name').lean()
 
-        console.log(`[Track Search] Пользователь ${userId} запрашивает: "${title}" (${artist})`)
-
-        // Ищем в Deezer метаданные и на YouTube аудиопоток
-        const trackInfo = await findAndStreamTrack(title, artist);
-
         const track = await Track.create({
             userId,
-            title: trackInfo.title,
-            artist: trackInfo.artist,
-            fileUrl: trackInfo.fileUrl,     // Ссылка на поток YouTube
-            coverUrl: trackInfo.coverUrl,   // Обложка из Deezer
+            title: title.trim(),
+            artist: artist?.trim() || '',
+            album: 'Uploaded Album',
+            duration: 180, // Можно вычислять или передавать
+            coverUrl,
+            fileUrl, // Здесь будет ссылка на R2 или пустая строка для стрима
             isSeed: false,
-            isStreamed: true,               // Флаг, что это стрим, а не локальный файл
+            isStreamed,
         })
 
         const trackWithAuthor = {
@@ -101,18 +117,98 @@ export const createTrack = async (req, res) => {
             authorEmail: user ? (user.name || user.email) : ''
         }
 
-        console.log(`[Track Created] Стрим-трек "${track.title}" успешно создан`)
         res.status(201).json({ track: trackWithAuthor })
     } catch (error) {
-        if (error.message.includes('не найдено')) {
-            return res.status(404).json({ message: error.message })
-        }
-        console.error('[Create Track Error]:', error)
-        res.status(500).json({ message: 'Ошибка при поиске или создании трека' })
+        console.error('[Create Track Error]:', error);
+        res.status(500).json({ message: 'Ошибка при создании трека' });
     }
 }
 
-// 4. Обновить название и исполнителя
+// 4. Универсальный стриминг аудио (для файлов из R2 и YouTube)
+export const streamTrackAudio = async (req, res) => {
+    try {
+        const track = await Track.findById(req.params.id);
+        if (!track) {
+            return res.status(404).json({ message: 'Трек не найден' });
+        }
+
+        // ВАРИАНТ А: У трека есть загруженный файл в R2
+        if (track.fileUrl && track.fileUrl.trim() !== '') {
+            console.log(`[Stream] Стриминг файла из R2 для трека: "${track.title}"`);
+
+            try {
+                const r2Response = await getFileStreamFromR2(track.fileUrl, req.headers.range);
+
+                if (r2Response && r2Response.Body) {
+                    const headers = {
+                        'Content-Type': r2Response.ContentType || 'audio/mpeg',
+                        'Accept-Ranges': 'bytes',
+                    };
+
+                    if (r2Response.ContentLength !== undefined) {
+                        headers['Content-Length'] = r2Response.ContentLength;
+                    }
+                    if (r2Response.ContentRange) {
+                        headers['Content-Range'] = r2Response.ContentRange;
+                    }
+
+                    // Если браузер запросил кусок (Range), отдаем 206, иначе 200
+                    const statusCode = req.headers.range ? 206 : 200;
+                    res.writeHead(statusCode, headers);
+
+                    return r2Response.Body.pipe(res);
+                }
+            } catch (r2Error) {
+                console.error('[R2 Stream Error]:', r2Error);
+                if (!res.headersSent) {
+                    return res.status(500).json({ message: 'Ошибка при чтении файла из хранилища' });
+                }
+            }
+        }
+
+        // ВАРИАНТ Б: Стриминг с YouTube через yt-dlp (для треков из поиска)
+        const searchQuery = track.artist
+            ? `${track.artist} - ${track.title} official audio`
+            : `${track.title} song`;
+
+        console.log(`[Stream] Генерация YouTube потока для: "${searchQuery}"`);
+
+        res.setHeader('Content-Type', 'audio/webm');
+        res.setHeader('Transfer-Encoding', 'chunked');
+
+        const subprocess = youtubedl.exec(
+            `ytsearch1:${searchQuery}`,
+            {
+                f: 'bestaudio',
+                o: '-',
+                q: true,
+                noCheckCertificates: true
+            },
+            { stdio: ['ignore', 'pipe', 'ignore'] }
+        );
+
+        subprocess.stdout.pipe(res);
+
+        subprocess.on('error', (err) => {
+            console.error('[Stream] Ошибка yt-dlp:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ message: 'Ошибка воспроизведения потока' });
+            }
+        });
+
+        req.on('close', () => {
+            subprocess.kill();
+        });
+
+    } catch (error) {
+        console.error('[Stream Error]:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+        }
+    }
+};
+
+// 5. Обновить название и исполнителя
 export const updateTrackTitle = async (req, res) => {
     try {
         const userId = req.userId || req.user?.id
@@ -144,7 +240,7 @@ export const updateTrackTitle = async (req, res) => {
     }
 }
 
-// 5. Загрузить/заменить обложку
+// 6. Загрузить/заменить обложку
 export const uploadCover = async (req, res) => {
     try {
         if (!req.file) {
@@ -157,7 +253,7 @@ export const uploadCover = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        if (track.coverUrl) {
+        if (track.coverUrl && !track.coverUrl.startsWith('http')) {
             await deleteFromR2(track.coverUrl)
         }
 
@@ -171,7 +267,7 @@ export const uploadCover = async (req, res) => {
     }
 }
 
-// 6. Удалить обложку
+// 7. Удалить обложку
 export const deleteCover = async (req, res) => {
     try {
         const userId = req.userId || req.user?.id
@@ -180,7 +276,7 @@ export const deleteCover = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        if (track.coverUrl) {
+        if (track.coverUrl && !track.coverUrl.startsWith('http')) {
             await deleteFromR2(track.coverUrl)
         }
 
@@ -194,7 +290,7 @@ export const deleteCover = async (req, res) => {
     }
 }
 
-// 7. Заменить аудиофайл
+// 8. Заменить аудиофайл
 export const updateTrackFile = async (req, res) => {
     try {
         if (!req.file) {
@@ -207,12 +303,12 @@ export const updateTrackFile = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        if (track.fileUrl) {
+        if (track.fileUrl && !track.fileUrl.startsWith('http')) {
             await deleteFromR2(track.fileUrl)
         }
 
         track.fileUrl = await uploadToR2(req.file, 'tracks')
-        track.fileSize = req.file.size
+        track.isStreamed = false
         await track.save()
 
         res.json({ track })
@@ -222,7 +318,7 @@ export const updateTrackFile = async (req, res) => {
     }
 }
 
-// 8. Удалить трек целиком
+// 9. Удалить трек целиком
 export const deleteTrack = async (req, res) => {
     try {
         const userId = req.userId || req.user?.id
@@ -231,7 +327,6 @@ export const deleteTrack = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        // Если это не стрим, а старый файл из R2 — удаляем физически
         if (!track.isStreamed) {
             if (track.fileUrl) await deleteFromR2(track.fileUrl)
             if (track.coverUrl && !track.coverUrl.startsWith('http')) {
