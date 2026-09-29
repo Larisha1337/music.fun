@@ -67,8 +67,20 @@ export const GlobalPlayer = () => {
 
     if (!currentTrack) return null;
 
-    // 👈 ИСПОЛЬЗУЕМ БЭКЕНД-ПРОКСИ СТРИМИНГ ПО ID ТРЕКА
-    const audioSrc = `${MY_API_BASE}/api/tracks/${currentTrack._id}/stream`;
+// 1. Проверяем, есть ли реальный загруженный файл в R2
+    const hasCustomFile = Boolean(
+        currentTrack?.fileUrl &&
+        currentTrack.fileUrl.trim() !== "" &&
+        !currentTrack.fileUrl.includes("dzcdn.net") // отсекаем битые ссылки дизера
+    );
+
+    // 2. Источник: свой файл — из R2, YouTube — через бэкенд стрим
+    const audioSrc = hasCustomFile
+        ? getMediaUrl(currentTrack.fileUrl)!
+        : `${MY_API_BASE}/api/tracks/${currentTrack._id}/stream`;
+
+    // 3. Флаг перемотки: доступен ТОЛЬКО для файлов из R2. Для YouTube — false (залочен).
+    const isSeekable = hasCustomFile;
 
     return (
         <>
@@ -198,6 +210,7 @@ export const GlobalPlayer = () => {
                             title={currentTrack.title}
                             coverSrc={coverSrc}
                             ambientColor={ambientColor}
+                            isSeekable={isSeekable}
                             repeatMode={repeatMode}
                             isShuffle={isShuffle}
                             onToggleRepeat={toggleRepeatMode}
@@ -287,6 +300,7 @@ export const GlobalPlayer = () => {
                                 title={currentTrack.title}
                                 coverSrc={coverSrc}
                                 ambientColor={ambientColor}
+                                isSeekable={isSeekable}
                                 repeatMode={repeatMode}
                                 isShuffle={isShuffle}
                                 onToggleRepeat={toggleRepeatMode}

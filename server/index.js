@@ -10,7 +10,12 @@ import playlistRoutes from './routes/playlist.js'
 
 const app = express()
 
-app.use(cors())
+app.use(cors({
+    origin: 'http://localhost:5173', // Укажи точный URL твоего фронтенда (или true, если хочешь разрешить любые)
+    credentials: true,
+    // 🌟 САМОЕ ГЛАВНОЕ ДЛЯ ПЕРЕМОТКИ: разрешаем браузеру видеть заголовки диапазонов
+    exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Type']
+}));
 app.use(express.json())
 app.use('/uploads', express.static('uploads')) // отдаём загруженные файлы наружу
 

@@ -12,6 +12,7 @@ type Props = {
     autoPlay?: boolean;
     repeatMode?: RepeatMode;
     isShuffle?: boolean;
+    isSeekable?: boolean
     onTimeUpdate?: (time: number) => void;
     onToggleRepeat?: () => void;
     onToggleShuffle?: () => void;
@@ -47,6 +48,7 @@ export const CustomAudioPlayer = ({
                                       autoPlay = true,
                                       repeatMode = 'off',
                                       isShuffle = false,
+                                      isSeekable = true,
                                       onTimeUpdate,
                                       onToggleRepeat,
                                       onToggleShuffle,
@@ -411,24 +413,28 @@ export const CustomAudioPlayer = ({
                     min={0}
                     max={duration || 100}
                     value={currentTime}
+                    disabled={!isSeekable}
                     onChange={handleProgressChange}
                     style={{
                         background: `linear-gradient(to right, ${ambientColor} ${progressPercent}%, #3f3f46 ${progressPercent}%)`,
                         ["--thumb-color" as any]: ambientColor,
                     }}
-                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-3.5
-                        [&::-webkit-slider-thumb]:h-3.5
-                        [&::-webkit-slider-thumb]:rounded-[4px]
-                        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
-                        [&::-webkit-slider-thumb]:shadow-md
-                        [&::-moz-range-thumb]:appearance-none
-                        [&::-moz-range-thumb]:w-3.5
-                        [&::-moz-range-thumb]:h-3.5
-                        [&::-moz-range-thumb]:rounded-[4px]
-                        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
-                        [&::-moz-range-thumb]:border-0"
+                    className={`w-full h-1.5 rounded-lg appearance-none focus:outline-none transition-all
+        ${!isSeekable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+        disabled:opacity-40 disabled:cursor-not-allowed
+        [&::-webkit-slider-thumb]:appearance-none
+        [&::-webkit-slider-thumb]:w-3.5
+        [&::-webkit-slider-thumb]:h-3.5
+        [&::-webkit-slider-thumb]:rounded-[4px]
+        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+        [&::-webkit-slider-thumb]:shadow-md
+        [&::-webkit-slider-thumb]:disabled:cursor-not-allowed
+        [&::-moz-range-thumb]:appearance-none
+        [&::-moz-range-thumb]:w-3.5
+        [&::-moz-range-thumb]:h-3.5
+        [&::-moz-range-thumb]:rounded-[4px]
+        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
+        [&::-moz-range-thumb]:border-0`}
                 />
                 <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
                     <span>{formatTime(currentTime)}</span>

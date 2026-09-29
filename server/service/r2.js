@@ -59,7 +59,6 @@ export const deleteFromR2 = async (fileUrl) => {
 export const getFileStreamFromR2 = async (fileUrl, rangeHeader) => {
     if (!fileUrl) return null
 
-    // Извлекаем ключ из публичного URL R2
     let key = fileUrl
     if (fileUrl.startsWith('http')) {
         if (!fileUrl.startsWith(process.env.R2_PUBLIC_DOMAIN)) return null
@@ -73,5 +72,5 @@ export const getFileStreamFromR2 = async (fileUrl, rangeHeader) => {
     })
 
     const response = await r2Client.send(command)
-    return response // Вернет объект с .Body (ReadableStream), .ContentType, .ContentRange и т.д.
+    return response
 }

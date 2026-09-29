@@ -166,14 +166,16 @@ export const streamTrackAudio = async (req, res) => {
             }
         }
 
-        // ВАРИАНТ Б: Стриминг с YouTube через yt-dlp (для треков из поиска)
+        // ВАРИАНТ Б: Стриминг с YouTube через yt-dlp
         const searchQuery = track.artist
             ? `${track.artist} - ${track.title} official audio`
             : `${track.title} song`;
 
         console.log(`[Stream] Генерация YouTube потока для: "${searchQuery}"`);
 
+        // 🌟 Обязательные заголовки, чтобы поток не обрывался на 30-й секунде
         res.setHeader('Content-Type', 'audio/webm');
+        res.setHeader('Accept-Ranges', 'none'); // Говорим браузеру, что перемотки здесь нет
         res.setHeader('Transfer-Encoding', 'chunked');
 
         const subprocess = youtubedl.exec(
@@ -341,3 +343,4 @@ export const deleteTrack = async (req, res) => {
         res.status(500).json({ message: 'Ошибка удаления трека' })
     }
 }
+
