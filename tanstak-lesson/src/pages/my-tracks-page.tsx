@@ -10,15 +10,18 @@ const MyTracksPage = () => {
     if (!data) return <Navigate to="/" replace />;
 
     return (
-        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6 text-zinc-100">
-            <h2 className="text-2xl font-bold text-white">My Tracks</h2>
-            <hr className="border-zinc-800" />
+        // Внешний блок на всю ширину, а внутренний — строго по центру с max-w-4xl
+        <div className="w-full px-4 sm:px-6 py-6 text-zinc-100 flex flex-col items-center">
+            <div className="w-full max-w-4xl space-y-6">
+                <h2 className="text-2xl font-bold text-white">My Tracks</h2>
+                <hr className="border-zinc-800" />
 
-            <div className="flex justify-center">
-                <UploadTrackModal />
+                <div className="flex justify-center">
+                    <UploadTrackModal />
+                </div>
+
+                <MyTrackList />
             </div>
-
-            <MyTrackList />
         </div>
     );
 };

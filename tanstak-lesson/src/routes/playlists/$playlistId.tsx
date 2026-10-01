@@ -138,8 +138,8 @@ function PlaylistDetailPage() {
     };
 
     return (
-        <div className="flex flex-col gap-6 p-6 text-zinc-100 max-w-5xl">
-            {/* Шапка плейлиста */}
+        <div className="flex flex-col gap-6 p-8 text-zinc-100 w-full min-h-full bg-gradient-to-b from-[#2a2136] via-[#121212] to-[#121212]">
+            {/* Шапка плейлиста на всю ширину */}
             <PlaylistHeader
                 playlist={playlist}
                 onPlayPlaylist={() => localTracks[0] && playTrack(localTracks[0], localTracks)}
@@ -147,20 +147,13 @@ function PlaylistDetailPage() {
                 getImageUrl={getImageUrl}
             />
 
-            {/* Список треков с поддержкой Drag-and-Drop */}
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-            >
-                <SortableContext
-                    items={localTracks.map((t) => t._id)}
-                    strategy={verticalListSortingStrategy}
-                >
-                    <div className="flex flex-col gap-2">
+            {/* Список треков на всю ширину */}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={localTracks.map((t) => t._id)} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-col gap-1 w-full">
                         {localTracks.length === 0 ? (
-                            <div className="text-zinc-500 text-sm p-8 text-center bg-[#18181b] rounded-2xl border border-[#27272a]">
-                                В этом плейлисте пока нет треков. Нажмите «⚙️ Настройки» ➔ «Добавить треки», чтобы пополнить список.
+                            <div className="text-zinc-500 text-sm p-12 text-center bg-[#18181b]/40 rounded-2xl border border-[#27272a]/50">
+                                В этом плейлисте пока нет треков.
                             </div>
                         ) : (
                             localTracks.map((track, index) => (

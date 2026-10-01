@@ -96,7 +96,7 @@ export const TrackList = ({
 
     return (
         <>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 max-w-4xl mx-auto w-full">
                 {tracks.map((track) => {
                     const isPlaying = currentTrack?._id === track._id
                     const { displayTitle, displayArtist } = getTrackDisplayInfo(track)

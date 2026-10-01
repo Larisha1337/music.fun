@@ -12,6 +12,8 @@ type Props = {
     ambientColor?: string;
     autoPlay?: boolean;
     repeatMode?: RepeatMode;
+    isPlaying?: boolean;
+    onTogglePlay?: () => void;
     isShuffle?: boolean;
     isSeekable?: boolean
     onTimeUpdate?: (time: number) => void;
@@ -309,7 +311,7 @@ export const CustomAudioPlayer = ({
     const volumePercent = (isMuted ? 0 : volume) * 100;
 
     return (
-        <div className="flex flex-col w-full gap-1 bg-transparent">
+        <div className=" flex-col w-full gap-1 bg-transparent">
             <audio
                 ref={audioRef}
                 src={src}
@@ -324,7 +326,6 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
-<div></div>
             {/* 1. Ползунок времени и тайминги */}
             <div className=" flex-col w-full gap-2">
                 <input
