@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useDebounce } from "./debounce/useDebounce.ts";
+import { useDebounce } from "@/shared/ui/lib/debounce/useDebounce.ts";
 
 export const usePlaylistSearch = (delay = 400) => {
     const [page, setPage] = useState(1);

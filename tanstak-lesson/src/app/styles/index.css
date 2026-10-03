@@ -10,3 +10,30 @@ body {
 a {
     color: #9c9c9c;
 }
+
+/* Кастомный премиальный скроллбар */
+@layer utilities {
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    /* Убираем плашку фона (трека), делаем её абсолютно прозрачной */
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    /* Сам ползунок делаем полупрозрачным и скругленным */
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 9999px;
+        border: 1px solid rgba(255, 255, 255, 0.05); /* Тонкая рамка для объема */
+        transition: all 0.3s ease;
+    }
+
+    /* Подсветка при наведении на сам скролл */
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(99, 102, 241, 0.5); /* Индиго-неон */
+        border-color: rgba(99, 102, 241, 0.3);
+    }
+}

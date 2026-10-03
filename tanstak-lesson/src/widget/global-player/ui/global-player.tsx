@@ -263,47 +263,72 @@ export const GlobalPlayer = () => {
                 </div>
             )}
 
-            {/* Режим Picture-in-Picture */}
+            {/* Режим Picture-in-Picture (Ультра-стильный дизайн) */}
             {isPipOpen &&
                 renderPip(
-                    <div className="h-full w-full bg-[#18181b]/90 text-white p-4 flex flex-col justify-between select-none font-sans relative overflow-hidden">
+                    <div className="relative h-full w-full bg-zinc-950/90 backdrop-blur-2xl text-white p-4 flex flex-col justify-between select-none font-sans overflow-hidden border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+                        {/* Фоновое мягкое амбиентное свечение от обложки */}
                         <div
-                            className="absolute inset-0 -z-10 blur-2xl opacity-75 pointer-events-none"
+                            className="absolute -inset-10 -z-10 blur-[60px] opacity-60 pointer-events-none transition-colors duration-700 scale-125"
                             style={{ backgroundColor: ambientColor }}
                         />
 
+                        {/* Верхняя строка: Статус и кнопка возврата */}
                         <div className="flex items-center justify-between z-10">
-                            <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
-                                Сейчас играет
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                                <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-400">
+                                    Mini Player
+                                </span>
+                            </div>
                             <button
                                 onClick={togglePip}
-                                className="text-zinc-300 hover:text-white text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
+                                title="Вернуть в главное окно"
+                                className="group flex items-center gap-1.5 text-[11px] font-medium text-zinc-300 hover:text-white px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all cursor-pointer shadow-sm active:scale-95"
                             >
-                                Вернуть в окно
+                                <span>Вернуть</span>
+                                <svg className="w-3.5 h-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-4 my-auto z-10">
+                        {/* Центральный блок: Обложка + Трек-инфо */}
+                        <div className="flex items-center gap-4 z-10 my-auto">
                             <div
-                                className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-[#27272a] border border-white/15 shadow-lg"
-                                style={{ boxShadow: `0 4px 20px ${ambientColor}` }}
+                                className="w-16 h-16 sm:w-18 sm:h-18 rounded-xl overflow-hidden shrink-0 bg-zinc-900 border border-white/20 shadow-xl relative group"
+                                style={{ boxShadow: `0 10px 30px -5px ${ambientColor}` }}
                             >
                                 {coverSrc ? (
-                                    <img src={coverSrc} alt={currentTrack.title} className="w-full h-full object-cover" />
+                                    <img src={coverSrc} alt={currentTrack.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-zinc-400">🎵</div>
+                                    <div className="w-full h-full flex items-center justify-center text-xl">🎵</div>
+                                )}
+
+                                {/* Эквалайзер на обложке, если трек играет */}
+                                {isPlaying && (
+                                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
+                                        <div className="flex items-end gap-0.5 h-4">
+                                            <span className="w-1 bg-indigo-400 animate-bounce h-full rounded-full" />
+                                            <span className="w-1 bg-indigo-400 animate-bounce h-2/3 rounded-full [animation-delay:0.2s]" />
+                                            <span className="w-1 bg-indigo-400 animate-bounce h-4/5 rounded-full [animation-delay:0.4s]" />
+                                        </div>
+                                    </div>
                                 )}
                             </div>
-                            <div className="min-w-0 flex-1">
-                                <h4 className="text-base font-bold text-white truncate">{currentTrack.title}</h4>
-                                <p className="text-xs text-zinc-300 truncate mt-0.5">
+
+                            <div className="min-w-0 flex-1 flex flex-col justify-center gap-1">
+                                <h4 className="text-sm sm:text-base font-extrabold text-white truncate tracking-tight">
+                                    {currentTrack.title}
+                                </h4>
+                                <p className="text-xs text-zinc-300 font-medium truncate">
                                     {currentTrack.artist || "Неизвестный исполнитель"}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="z-10 w-full">
+                        {/* Нижняя часть: Компактный плеер */}
+                        <div className="z-10 w-full pt-1">
                             <CustomAudioPlayer
                                 src={audioSrc}
                                 title={currentTrack.title}
@@ -318,6 +343,8 @@ export const GlobalPlayer = () => {
                                 onPrev={playPrev}
                                 onEnded={playNext}
                                 onTimeUpdate={(time: number) => setCurrentTime(time)}
+                                isPlaying={isPlaying}
+                                onTogglePlay={togglePlay}
                                 autoPlay
                             />
                         </div>
