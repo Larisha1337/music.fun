@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { TrackActionsModal } from './track-actions-modal'
 import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal'
-import {TrackLikeButton} from "@/features/tracks/ui/button/tracks-likes-button.tsx";
+import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx"
+import { TrackSkeleton } from "@/shared/ui/track-skeleton.tsx"
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
@@ -19,7 +20,6 @@ interface TrackListProps {
     tracks: Track[]
     isLoading: boolean
     emptyMessage?: string
-    showAuthor?: boolean
     enableActions?: boolean // true для "Моих треков", false для "Глобальной ленты"
 }
 
@@ -54,11 +54,10 @@ export const TrackList = ({
                               tracks = [],
                               isLoading,
                               emptyMessage = 'Треков пока нет',
-                              showAuthor = false,
                               enableActions = false
                           }: TrackListProps) => {
     const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
-    const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null) // 👈 Состояние для добавления в плейлист
+    const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null)
 
     const { currentTrack, playTrack, closePlayer } = useAudioPlayer()
 
@@ -83,7 +82,14 @@ export const TrackList = ({
     }
 
     if (isLoading) {
-        return <p className="text-xs text-zinc-500 text-center py-4">Загрузка треков...</p>
+        return (
+            <div className="flex flex-col gap-4 max-w-4xl mx-auto w-full">
+                {/* Плавные скелетоны вместо скучного текста */}
+                {Array.from({ length: 5 }).map((_, index) => (
+                    <TrackSkeleton key={index} />
+                ))}
+            </div>
+        )
     }
 
     if (tracks.length === 0) {
@@ -147,7 +153,7 @@ export const TrackList = ({
                                 )}
                             </div>
 
-                            {/* Инфо и автор */}
+                            {/* Инфо, автор и загрузчик */}
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <span
                                     onClick={() => enableActions && setSelectedTrackId(track._id)}
@@ -163,16 +169,11 @@ export const TrackList = ({
                                     {displayArtist}
                                 </span>
 
-                                {showAuthor && track.authorEmail && (
-                                    <span className="text-xs text-zinc-500 truncate mt-0.5">
-                                        Загрузил: {track.authorEmail}
-                                    </span>
-                                )}
                             </div>
 
                             <TrackLikeButton trackId={track._id} />
 
-                            {/* 👈 КНОПКА ДОБАВЛЕНИЯ В ПЛЕЙЛИСТ */}
+                            {/* Кнопка добавления в плейлист */}
                             <button
                                 type="button"
                                 onClick={() => setPlaylistTrackId(track._id)}
@@ -197,7 +198,7 @@ export const TrackList = ({
                 />
             )}
 
-            {/* 👈 Модалка выбора плейлиста */}
+            {/* Модалка выбора плейлиста */}
             {playlistTrackId && (
                 <AddToPlaylistModal
                     trackId={playlistTrackId}

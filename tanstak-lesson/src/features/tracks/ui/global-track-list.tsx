@@ -10,7 +10,6 @@ export const GlobalTrackList = () => {
             isLoading={isLoading}
             emptyMessage="В глобальной ленте пока нет треков"
             enableActions={false} // Выключаем редактирование чужих треков
-            showAuthor={true}     // Показываем email загрузившего
         />
     )
 }

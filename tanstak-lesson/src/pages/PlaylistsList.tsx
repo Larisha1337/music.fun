@@ -118,7 +118,7 @@ export const PlaylistsSidebar = () => {
                             </div>
                             <div className="flex flex-col truncate">
                                 <span className="text-sm truncate">{playlist.name}</span>
-                                <span className="text-[11px] text-zinc-500">Плейлист • Вы</span>
+                                <span className="text-[11px] text-zinc-500">Плейлист</span>
                             </div>
                         </Link>
                     )

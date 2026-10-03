@@ -9,7 +9,7 @@ export type TrackInfo = {
     artist?: string;
     fileUrl: string;
     coverUrl?: string | null;
-    authorEmail?: string; // 👈 Добавили authorEmail в тип
+    authorEmail?: string;
 };
 
 type AudioPlayerContextType = {
@@ -18,7 +18,9 @@ type AudioPlayerContextType = {
     repeatMode: RepeatMode;
     isShuffle: boolean;
     isFullscreen: boolean;
+    isPlaying: boolean; // 👈 Добавили в тип
     playTrack: (track: TrackInfo, playlist?: TrackInfo[]) => void;
+    togglePlay: () => void; // 👈 Добавили в тип
     playNext: () => void;
     playPrev: () => void;
     toggleRepeatMode: () => void;
@@ -27,7 +29,7 @@ type AudioPlayerContextType = {
     closePlayer: () => void;
 };
 
-// 💡 Хелпер нормализации данных трека: если artist пустой, достаем из title или authorEmail
+// Хелпер нормализации данных трека
 const normalizeTrack = (track: TrackInfo): TrackInfo => {
     let displayTitle = track.title;
     let displayArtist = track.artist?.trim();
@@ -71,6 +73,11 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         return parsed.map(normalizeTrack);
     });
 
+    // 💡 Стейт воспроизведения (с восстановлением из localStorage)
+    const [isPlaying, setIsPlaying] = useState<boolean>(() => {
+        return localStorage.getItem('player-was-playing') === 'true';
+    });
+
     const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
         const savedMode = localStorage.getItem('player-repeat-mode');
         return (savedMode as RepeatMode) || 'off';
@@ -102,10 +109,22 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         });
     };
 
+    // 💡 Переключение Play/Pause
+    const togglePlay = () => {
+        setIsPlaying((prev) => {
+            const next = !prev;
+            localStorage.setItem('player-was-playing', String(next));
+            return next;
+        });
+    };
+
     const playTrack = (track: TrackInfo, newPlaylist?: TrackInfo[]) => {
         const formattedTrack = normalizeTrack(track);
         setCurrentTrack(formattedTrack);
         localStorage.setItem('player-current-track', JSON.stringify(formattedTrack));
+
+        setIsPlaying(true);
+        localStorage.setItem('player-was-playing', 'true');
 
         if (newPlaylist) {
             const formattedPlaylist = newPlaylist.map(normalizeTrack);
@@ -121,7 +140,6 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
         let nextTrack: TrackInfo | undefined;
 
-        // Режим случайного воспроизведения
         if (isShuffle && playlist.length > 1) {
             let randomIndex = currentIndex;
             while (randomIndex === currentIndex) {
@@ -137,6 +155,8 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
             const formattedNext = normalizeTrack(nextTrack);
             setCurrentTrack(formattedNext);
             localStorage.setItem('player-current-track', JSON.stringify(formattedNext));
+            setIsPlaying(true);
+            localStorage.setItem('player-was-playing', 'true');
         }
     };
 
@@ -147,7 +167,6 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         const currentIndex = playlist.findIndex((t) => t._id === currentTrack._id);
         let prevTrack: TrackInfo | undefined;
 
-        // Режим случайного воспроизведения
         if (isShuffle && playlist.length > 1) {
             let randomIndex = currentIndex;
             while (randomIndex === currentIndex) {
@@ -163,12 +182,15 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
             const formattedPrev = normalizeTrack(prevTrack);
             setCurrentTrack(formattedPrev);
             localStorage.setItem('player-current-track', JSON.stringify(formattedPrev));
+            setIsPlaying(true);
+            localStorage.setItem('player-was-playing', 'true');
         }
     };
 
     const closePlayer = () => {
         setCurrentTrack(null);
         setPlaylist([]);
+        setIsPlaying(false);
         localStorage.removeItem('player-current-track');
         localStorage.removeItem('player-playlist');
         localStorage.removeItem('player-was-playing');
@@ -182,7 +204,9 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
                 repeatMode,
                 isShuffle,
                 isFullscreen,
+                isPlaying,
                 playTrack,
+                togglePlay,
                 playNext,
                 playPrev,
                 toggleRepeatMode,

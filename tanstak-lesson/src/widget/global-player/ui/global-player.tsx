@@ -18,6 +18,8 @@ const getMediaUrl = (url?: string | null): string | null => {
 export const GlobalPlayer = () => {
     const {
         currentTrack,
+        isPlaying,
+        togglePlay,
         playNext,
         playPrev,
         closePlayer,
@@ -224,6 +226,8 @@ export const GlobalPlayer = () => {
                             onPrev={playPrev}
                             onEnded={playNext}
                             onTimeUpdate={(time: number) => setCurrentTime(time)}
+                            isPlaying={isPlaying}
+                            onTogglePlay={togglePlay}
                             autoPlay
                         />
                     </div>

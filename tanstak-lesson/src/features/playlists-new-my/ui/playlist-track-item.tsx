@@ -1,11 +1,14 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import {TrackLikeButton} from "@/features/tracks/ui/button/tracks-likes-button.tsx";
+import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx";
+import { useAudioPlayer } from "@/shared/ui/lib/audio-player-context";
 
 interface Track {
     _id: string;
     title: string;
     artist?: string;
+    fileUrl?: string;
+    audioUrl?: string;
     coverUrl?: string | null;
 }
 
@@ -13,7 +16,7 @@ interface PlaylistTrackItemProps {
     track: Track;
     index: number;
     isCurrent: boolean;
-    onPlay: () => void;
+    onPlay: () => void; // Можно оставить для совместимости, но логику плеера берем из контекста
     onRequestRemove: () => void;
     getImageUrl: (url?: string | null) => string;
 }
@@ -21,11 +24,15 @@ interface PlaylistTrackItemProps {
 export const PlaylistTrackItem = ({
                                       track,
                                       index,
-                                      isCurrent,
-                                      onPlay,
                                       onRequestRemove,
                                       getImageUrl
                                   }: PlaylistTrackItemProps) => {
+    // Достаем глобальный стейт плеера точно так же, как в TrackList
+    const { currentTrack, playTrack, closePlayer } = useAudioPlayer();
+
+    // Трек играет прямо сейчас, если его ID совпадает с текущим в плеере
+    const isPlaying = currentTrack?._id === track._id;
+
     // Подключаем хук сортировки от dnd-kit
     const {
         attributes,
@@ -43,12 +50,33 @@ export const PlaylistTrackItem = ({
         opacity: isDragging ? 0.4 : 1,
     };
 
+    // Точный аналог togglePlay из твоего TrackList
+    const handleTogglePlay = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isPlaying) {
+            closePlayer();
+        } else {
+            playTrack(
+                {
+                    _id: track._id,
+                    title: track.title,
+                    artist: track.artist || "Неизвестный исполнитель",
+                    fileUrl: track.fileUrl || track.audioUrl || "",
+                    coverUrl: track.coverUrl
+                },
+                // Если у тебя есть массив всех треков плейлиста, можно передать его вторым аргументом,
+                // чтобы работало переключение next/prev, если контекст это поддерживает:
+                // [track]
+            );
+        }
+    };
+
     return (
         <div
             ref={setNodeRef}
             style={style}
             className={`flex items-center justify-between p-3 rounded-xl border transition-colors group ${
-                isCurrent
+                isPlaying
                     ? "bg-indigo-950/30 border-indigo-500/40"
                     : "bg-[#18181b] hover:bg-[#27272a] border-[#27272a]"
             }`}
@@ -69,40 +97,47 @@ export const PlaylistTrackItem = ({
                     {index + 1}
                 </span>
 
-                {/* Обложка трека */}
+                {/* Обложка трека, которая сама работает как кнопка Play/Pause */}
                 <div
-                    onClick={onPlay}
-                    className="relative w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-zinc-700/50 cursor-pointer"
-                    title="Воспроизвести"
+                    onClick={handleTogglePlay}
+                    className="relative w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-zinc-700/50 cursor-pointer group/cover flex items-center justify-center"
+                    title={isPlaying ? "Пауза" : "Воспроизвести"}
                 >
                     {track.coverUrl ? (
                         <img
                             src={getImageUrl(track.coverUrl)}
                             alt={track.title}
-                            className="w-full h-full object-cover"
+                            className={`w-full h-full object-cover transition-opacity ${
+                                isPlaying ? "opacity-40" : "opacity-100 group-hover/cover:opacity-40"
+                            }`}
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs">🎵</div>
                     )}
 
+                    {/* Оверлей с иконкой Play / Pause */}
                     <div
-                        className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity ${
-                            isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        className={`absolute inset-0 flex items-center justify-center transition-opacity ${
+                            isPlaying ? "opacity-100 bg-indigo-600/60 text-white" : "opacity-0 group-hover/cover:opacity-100 bg-black/50 text-white"
                         }`}
                     >
-                        <span className="text-white text-sm">▶</span>
+                        {isPlaying ? (
+                            <span className="text-[10px] font-bold">❚❚</span>
+                        ) : (
+                            <span className="text-[10px] translate-x-[1px]">▶</span>
+                        )}
                     </div>
                 </div>
 
-                {/* Название и исполнитель */}
+                {/* Название и исполнитель (тоже можно сделать кликабельными на воспроизведение, если хочешь) */}
                 <div
-                    onClick={onPlay}
+                    onClick={handleTogglePlay}
                     className="truncate flex-1 cursor-pointer select-none py-1"
                     title="Включить трек"
                 >
                     <div
                         className={`text-sm font-semibold truncate ${
-                            isCurrent
+                            isPlaying
                                 ? "text-indigo-400"
                                 : "text-white hover:text-indigo-300 transition-colors"
                         }`}
@@ -115,9 +150,8 @@ export const PlaylistTrackItem = ({
                 </div>
             </div>
 
-            {/* Кнопка удаления из плейлиста */}
+            {/* Кнопка лайка и удаления из плейлиста */}
             <div className="flex items-center gap-2 shrink-0 ml-3">
-                {/* 👈 Добавляем кнопку лайка */}
                 <TrackLikeButton trackId={track._id} />
                 <button
                     type="button"
