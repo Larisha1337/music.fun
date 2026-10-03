@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, type ChangeEvent } from "react";
+import { useState, useRef, useEffect, type ChangeEvent, memo } from "react";
 import { AudioVisualizer } from "./audio-visualizer";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
-import {TrackLikeButton} from "@/features/tracks/ui/button/tracks-likes-button.tsx";
+import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx";
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -15,7 +15,7 @@ type Props = {
     isPlaying?: boolean;
     onTogglePlay?: () => void;
     isShuffle?: boolean;
-    isSeekable?: boolean
+    isSeekable?: boolean;
     onTimeUpdate?: (time: number) => void;
     onToggleRepeat?: () => void;
     onToggleShuffle?: () => void;
@@ -44,6 +44,112 @@ const RepeatOneIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+// Прогресс-бар на рефах: 0 ререндеров React при воспроизведении 60 FPS
+type ProgressBarProps = {
+    audioRef: React.RefObject<HTMLAudioElement | null>;
+    duration: number;
+    isSeekable: boolean;
+    ambientColor: string;
+    onTimeUpdate?: (time: number) => void;
+    src: string;
+};
+
+const AudioProgressBar = memo(({
+                                   audioRef,
+                                   duration,
+                                   isSeekable,
+                                   ambientColor,
+                                   onTimeUpdate,
+                                   src
+                               }: ProgressBarProps) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const currentTimeRef = useRef<HTMLSpanElement>(null);
+
+    const formatTime = (time: number) => {
+        if (isNaN(time)) return "0:00";
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+    };
+
+    useEffect(() => {
+        let rafId: number;
+
+        const tick = () => {
+            if (audioRef.current) {
+                const time = audioRef.current.currentTime;
+
+                // Напрямую обновляем value и стили инпута без ререндера React
+                if (inputRef.current) {
+                    inputRef.current.value = String(time);
+                    const dur = duration || 1;
+                    const percent = (time / dur) * 100;
+                    inputRef.current.style.background = `linear-gradient(to right, ${ambientColor} ${percent}%, #3f3f46 ${percent}%)`;
+                }
+
+                // Напрямую обновляем текстовый спан времени
+                if (currentTimeRef.current) {
+                    currentTimeRef.current.textContent = formatTime(time);
+                }
+
+                onTimeUpdate?.(time);
+            }
+            rafId = requestAnimationFrame(tick);
+        };
+
+        rafId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(rafId);
+    }, [audioRef, duration, ambientColor, onTimeUpdate]);
+
+    const handleProgressChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const newTime = Number(e.target.value);
+        if (audioRef.current) {
+            audioRef.current.currentTime = newTime;
+            onTimeUpdate?.(newTime);
+            localStorage.setItem(`player-time-${src}`, String(newTime));
+        }
+    };
+
+    return (
+        <div className="flex flex-col w-full gap-2">
+            <input
+                ref={inputRef}
+                type="range"
+                min={0}
+                max={duration || 100}
+                defaultValue={0}
+                disabled={!isSeekable}
+                onChange={handleProgressChange}
+                style={{
+                    ["--thumb-color" as any]: ambientColor,
+                }}
+                className={`w-full h-1.5 rounded-lg appearance-none focus:outline-none transition-all
+                    ${!isSeekable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+                    disabled:opacity-40 disabled:cursor-not-allowed
+                    [&::-webkit-slider-thumb]:appearance-none
+                    [&::-webkit-slider-thumb]:w-3.5
+                    [&::-webkit-slider-thumb]:h-3.5
+                    [&::-webkit-slider-thumb]:rounded-[4px]
+                    [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+                    [&::-webkit-slider-thumb]:shadow-md
+                    [&::-webkit-slider-thumb]:disabled:cursor-not-allowed
+                    [&::-moz-range-thumb]:appearance-none
+                    [&::-moz-range-thumb]:w-3.5
+                    [&::-moz-range-thumb]:h-3.5
+                    [&::-moz-range-thumb]:rounded-[4px]
+                    [&::-moz-range-thumb]:bg-[var(--thumb-color)]
+                    [&::-moz-range-thumb]:border-0`}
+            />
+            <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
+                <span ref={currentTimeRef}>0:00</span>
+                <span>{formatTime(duration)}</span>
+            </div>
+        </div>
+    );
+});
+
+AudioProgressBar.displayName = 'AudioProgressBar';
+
 export const CustomAudioPlayer = ({
                                       src,
                                       title,
@@ -65,8 +171,6 @@ export const CustomAudioPlayer = ({
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
     const [duration, setDuration] = useState(0);
-    const [currentTime, setCurrentTime] = useState(0);
-
 
     const [volume, setVolume] = useState<number>(() => {
         const savedVolume = localStorage.getItem('player-volume');
@@ -91,7 +195,6 @@ export const CustomAudioPlayer = ({
         if (!audio || !src) return;
 
         setIsBuffering(true);
-        setCurrentTime(0);
         setDuration(0);
 
         const wasPlaying = localStorage.getItem('player-was-playing') !== 'false';
@@ -103,7 +206,6 @@ export const CustomAudioPlayer = ({
             const savedTime = localStorage.getItem(`player-time-${src}`);
             if (savedTime && Number(savedTime) < audio.duration) {
                 audio.currentTime = Number(savedTime);
-                setCurrentTime(Number(savedTime));
             }
 
             if (wasPlaying || autoPlay) {
@@ -152,25 +254,6 @@ export const CustomAudioPlayer = ({
             }
         };
     }, [src, autoPlay]);
-
-    useEffect(() => {
-        if (!isPlaying) return;
-
-        let rafId: number;
-
-        const tick = () => {
-            if (audioRef.current) {
-                const time = audioRef.current.currentTime;
-                setCurrentTime(time);
-                onTimeUpdate?.(time);
-            }
-            rafId = requestAnimationFrame(tick);
-        };
-
-        rafId = requestAnimationFrame(tick);
-
-        return () => cancelAnimationFrame(rafId);
-    }, [isPlaying, onTimeUpdate]);
 
     const togglePlay = () => {
         if (!audioRef.current) return;
@@ -221,15 +304,6 @@ export const CustomAudioPlayer = ({
             navigator.mediaSession.setActionHandler('previoustrack', null);
         }
     }, [title, coverSrc, onNext, onPrev]);
-
-    const handleTimeUpdate = () => {
-        if (audioRef.current) {
-            const time = audioRef.current.currentTime;
-            setCurrentTime(time);
-            onTimeUpdate?.(time);
-            localStorage.setItem(`player-time-${src}`, String(time));
-        }
-    };
 
     const handleEndedTrack = () => {
         if (repeatMode === 'one' && audioRef.current) {
@@ -283,22 +357,6 @@ export const CustomAudioPlayer = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isPlaying, onNext, onPrev]);
 
-    const formatTime = (time: number) => {
-        if (isNaN(time)) return "0:00";
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-    };
-
-    const handleProgressChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const newTime = Number(e.target.value);
-        if (audioRef.current) {
-            audioRef.current.currentTime = newTime;
-            setCurrentTime(newTime);
-            onTimeUpdate?.(newTime);
-        }
-    };
-
     const handleVolumeChange = (e: ChangeEvent<HTMLInputElement>) => {
         const newVolume = Number(e.target.value);
         setVolume(newVolume);
@@ -307,16 +365,14 @@ export const CustomAudioPlayer = ({
 
     const toggleMute = () => setIsMuted(!isMuted);
 
-    const progressPercent = (currentTime / (duration || 1)) * 100;
     const volumePercent = (isMuted ? 0 : volume) * 100;
 
     return (
-        <div className=" flex-col w-full gap-1 bg-transparent">
+        <div className="flex flex-col w-full gap-1 bg-transparent">
             <audio
                 ref={audioRef}
                 src={src}
                 crossOrigin="anonymous"
-                onTimeUpdate={handleTimeUpdate}
                 onEnded={handleEndedTrack}
                 onWaiting={() => setIsBuffering(true)}
                 onPlaying={() => setIsBuffering(false)}
@@ -326,43 +382,17 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
-            {/* 1. Ползунок времени и тайминги */}
-            <div className=" flex-col w-full gap-2">
-                <input
-                    type="range"
-                    min={0}
-                    max={duration || 100}
-                    value={currentTime}
-                    disabled={!isSeekable}
-                    onChange={handleProgressChange}
-                    style={{
-                        background: `linear-gradient(to right, ${ambientColor} ${progressPercent}%, #3f3f46 ${progressPercent}%)`,
-                        ["--thumb-color" as any]: ambientColor,
-                    }}
-                    className={`w-full h-1.5 rounded-lg appearance-none focus:outline-none transition-all
-                        ${!isSeekable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-                        disabled:opacity-40 disabled:cursor-not-allowed
-                        [&::-webkit-slider-thumb]:appearance-none
-                        [&::-webkit-slider-thumb]:w-3.5
-                        [&::-webkit-slider-thumb]:h-3.5
-                        [&::-webkit-slider-thumb]:rounded-[4px]
-                        [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
-                        [&::-webkit-slider-thumb]:shadow-md
-                        [&::-webkit-slider-thumb]:disabled:cursor-not-allowed
-                        [&::-moz-range-thumb]:appearance-none
-                        [&::-moz-range-thumb]:w-3.5
-                        [&::-moz-range-thumb]:h-3.5
-                        [&::-moz-range-thumb]:rounded-[4px]
-                        [&::-moz-range-thumb]:bg-[var(--thumb-color)]
-                        [&::-moz-range-thumb]:border-0`}
-                />
-                <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
-                    <span>{formatTime(currentTime)}</span>
-                    <span>{formatTime(duration)}</span>
-                </div>
-            </div>
+            {/* 1. Изолированный прогресс-бар на рефах */}
+            <AudioProgressBar
+                audioRef={audioRef}
+                duration={duration}
+                isSeekable={isSeekable}
+                ambientColor={ambientColor}
+                onTimeUpdate={onTimeUpdate}
+                src={src}
+            />
 
-            {/* 2. Нижняя панель: слева визуализатор/пусто, по центру кнопки, справа громкость */}
+            {/* 2. Нижняя панель управления */}
             <div className="flex items-center justify-between w-full">
                 <div className="hidden md:flex items-center shrink-0">
                     <AudioVisualizer
@@ -372,7 +402,7 @@ export const CustomAudioPlayer = ({
                     />
                 </div>
 
-                {/* Центр: все кнопки управления в одну строчку */}
+                {/* Центр: кнопки */}
                 <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1">
                     {onToggleShuffle && (
                         <button
@@ -499,11 +529,11 @@ export const CustomAudioPlayer = ({
                             [&::-moz-range-thumb]:bg-[var(--thumb-color)]
                             [&::-moz-range-thumb]:border-0"
                     />
-                    {/* 👈 Текст с процентами */}
                     <span className="text-[11px] font-mono text-zinc-400 w-8 text-right select-none">
-        {Math.round(volumePercent)}%
-    </span>
+                        {Math.round(volumePercent)}%
+                    </span>
                 </div>
             </div>
         </div>
-    )}
+    );
+};

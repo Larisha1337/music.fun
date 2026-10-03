@@ -7,7 +7,7 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-   type DragEndEvent
+    type DragEndEvent
 } from "@dnd-kit/core";
 import {
     arrayMove,
@@ -54,7 +54,8 @@ function PlaylistDetailPage() {
     const { mutate: updatePlaylist, isPending: isUpdating } = useUpdatePlaylistMutation(playlistId);
     const { mutate: deletePlaylist, isPending: isDeleting } = useDeletePlaylistMutation();
 
-    const { currentTrack, playTrack } = useAudioPlayer();
+    // Достаем closePlayer для сброса плеера при удалении текущего трека
+    const { currentTrack, playTrack, closePlayer } = useAudioPlayer();
 
     // Локальный стейт треков для мгновенного визуального перетаскивания
     const [localTracks, setLocalTracks] = useState<any[]>([]);
@@ -122,6 +123,12 @@ function PlaylistDetailPage() {
 
     const handleConfirmRemoveTrack = () => {
         if (!trackToRemove) return;
+
+        // Если удаляемый трек сейчас играет — закрываем плеер, чтобы он не оставался в кэше/памяти
+        if (currentTrack?._id === trackToRemove.id) {
+            closePlayer();
+        }
+
         removeTrack(trackToRemove.id, {
             onSuccess: () => setTrackToRemove(null)
         });
@@ -132,6 +139,7 @@ function PlaylistDetailPage() {
             onSuccess: () => {
                 setIsDeletePlaylistConfirmOpen(false);
                 setIsPlaylistModalOpen(false);
+                closePlayer(); // Также закрываем плеер при удалении всего плейлиста
                 navigate({ to: "/" });
             }
         });
@@ -162,6 +170,7 @@ function PlaylistDetailPage() {
                                     track={track}
                                     index={index}
                                     isCurrent={currentTrack?._id === track._id}
+                                    playlistTracks={localTracks}
                                     onPlay={() => playTrack(track, localTracks)}
                                     onRequestRemove={() => setTrackToRemove({ id: track._id, title: track.title })}
                                     getImageUrl={getImageUrl}

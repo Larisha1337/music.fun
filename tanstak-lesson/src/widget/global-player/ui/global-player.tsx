@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAudioPlayer } from "@/shared/ui/lib/audio-player-context";
 import { CustomAudioPlayer } from "@/shared/ui/audio-player/custom-audio-player";
 import { useCoverColor } from "@/shared/ui/lib/use-cover-color";
 import { usePictureInPicture } from "@/shared/ui/lib/use-picture-in-picture";
 import { LyricsView } from "@/shared/ui/lib/parce/lyrics-view";
+import { parseLrc } from "@/shared/ui/lib/parce/lrc-parser";
 import { fetchLyrics } from "@/shared/api/lyrics-api";
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || "http://localhost:5000";
@@ -14,6 +15,84 @@ const getMediaUrl = (url?: string | null): string | null => {
         ? url
         : `${MY_API_BASE}${url}`;
 };
+
+// Изолированный компонент для текста песни, чтобы тики таймера не перерендеривали GlobalPlayer
+const FullscreenLyricsBox = ({ track }: { track: { _id: string; title: string; artist?: string } }) => {
+    const [lrcString, setLrcString] = useState("");
+    const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+
+    const lyrics = useMemo(() => {
+        return lrcString ? parseLrc(lrcString) : [];
+    }, [lrcString]);
+
+    useEffect(() => {
+        if (!track) return;
+        let isCancelled = false;
+
+        setIsLoadingLyrics(true);
+        fetchLyrics(track.title, track.artist)
+            .then((lrc) => {
+                if (!isCancelled) setLrcString(lrc || "");
+            })
+            .finally(() => {
+                if (!isCancelled) setIsLoadingLyrics(false);
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [track._id, track.title, track.artist]);
+
+    useEffect(() => {
+        const audioEl = document.querySelector('audio');
+        if (!audioEl) return;
+
+        const handleTimeUpdate = () => {
+            setCurrentTime(audioEl.currentTime);
+        };
+
+        audioEl.addEventListener('timeupdate', handleTimeUpdate);
+        return () => {
+            audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+        };
+    }, []);
+
+    return (
+        <div className="w-full lg:w-1/2 h-[45vh] lg:h-[60vh] flex flex-col items-center justify-center bg-black/40 rounded-3xl p-6 sm:p-8 border border-white/10 backdrop-blur-2xl shadow-2xl overflow-hidden min-h-0">
+            {isLoadingLyrics ? (
+                <div className="text-center text-zinc-300 animate-pulse text-lg font-medium my-auto">
+                    Загрузка текста...
+                </div>
+            ) : lyrics.length > 0 ? (
+                <div className="w-full h-full overflow-y-auto flex flex-col justify-center">
+                    <LyricsView
+                        lyrics={lyrics}
+                        currentTime={currentTime}
+                        offset={0.3}
+                    />
+                </div>
+            ) : (
+                <div className="text-center text-zinc-400 text-lg font-medium my-auto">
+                    Для этого трека пока нет текста
+                </div>
+            )}
+        </div>
+    );
+};
+
+// 🌟 Мемоизированный плеер, чтобы тики прогресса не дергали родителя
+const MemoizedCustomAudioPlayer = React.memo((props: any) => {
+    return <CustomAudioPlayer {...props} />;
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.trackId === nextProps.trackId &&
+        prevProps.isPlaying === nextProps.isPlaying &&
+        prevProps.repeatMode === nextProps.repeatMode &&
+        prevProps.isShuffle === nextProps.isShuffle &&
+        prevProps.src === nextProps.src
+    );
+});
 
 export const GlobalPlayer = () => {
     const {
@@ -33,30 +112,8 @@ export const GlobalPlayer = () => {
 
     const { isPipOpen, isSupported, togglePip, renderPip } = usePictureInPicture();
 
-    const [lrcString, setLrcString] = useState("");
-    const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
-    const [currentTime, setCurrentTime] = useState(0);
-
     const coverSrc = getMediaUrl(currentTrack?.coverUrl);
     const ambientColor = useCoverColor(coverSrc, "#6366f1");
-
-    useEffect(() => {
-        if (!currentTrack) return;
-        let isCancelled = false;
-
-        setIsLoadingLyrics(true);
-        fetchLyrics(currentTrack.title, currentTrack.artist)
-            .then((lrc) => {
-                if (!isCancelled) setLrcString(lrc || "");
-            })
-            .finally(() => {
-                if (!isCancelled) setIsLoadingLyrics(false);
-            });
-
-        return () => {
-            isCancelled = true;
-        };
-    }, [currentTrack?._id, currentTrack?.title, currentTrack?.artist]);
 
     useEffect(() => {
         if (!isFullscreen) return;
@@ -73,7 +130,7 @@ export const GlobalPlayer = () => {
     const hasCustomFile = Boolean(
         currentTrack?.fileUrl &&
         currentTrack.fileUrl.trim() !== "" &&
-        !currentTrack.fileUrl.includes("dzcdn.net") // отсекаем битые ссылки дизера
+        !currentTrack.fileUrl.includes("dzcdn.net")
     );
 
     // 2. Источник: свой файл — из R2, YouTube — через бэкенд стрим
@@ -81,7 +138,7 @@ export const GlobalPlayer = () => {
         ? getMediaUrl(currentTrack.fileUrl)!
         : `${MY_API_BASE}/api/tracks/${currentTrack._id}/stream`;
 
-    // 3. Флаг перемотки: доступен ТОЛЬКО для файлов из R2. Для YouTube — false (залочен).
+    // 3. Флаг перемотки
     const isSeekable = hasCustomFile;
 
     return (
@@ -148,26 +205,8 @@ export const GlobalPlayer = () => {
                                     </div>
                                 </div>
 
-                                {/* Правая часть: Текст песни */}
-                                <div className="w-full lg:w-1/2 h-[45vh] lg:h-[60vh] flex flex-col items-center justify-center bg-black/40 rounded-3xl p-6 sm:p-8 border border-white/10 backdrop-blur-2xl shadow-2xl overflow-hidden min-h-0">
-                                    {isLoadingLyrics ? (
-                                        <div className="text-center text-zinc-300 animate-pulse text-lg font-medium my-auto">
-                                            Загрузка текста...
-                                        </div>
-                                    ) : lrcString ? (
-                                        <div className="w-full h-full overflow-y-auto flex flex-col justify-center">
-                                            <LyricsView
-                                                lrcString={lrcString}
-                                                currentTime={currentTime}
-                                                offset={0.3}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="text-center text-zinc-400 text-lg font-medium my-auto">
-                                            Для этого трека пока нет текста
-                                        </div>
-                                    )}
-                                </div>
+                                {/* Правая часть: Текст песни (изолированный компонент) */}
+                                <FullscreenLyricsBox track={currentTrack} />
                             </div>
                         </>
                     )}
@@ -211,7 +250,7 @@ export const GlobalPlayer = () => {
                         }
                         style={isFullscreen ? ({ "--accent-color": ambientColor } as React.CSSProperties) : undefined}
                     >
-                        <CustomAudioPlayer
+                        <MemoizedCustomAudioPlayer
                             src={audioSrc}
                             title={currentTrack.title}
                             coverSrc={coverSrc}
@@ -225,7 +264,6 @@ export const GlobalPlayer = () => {
                             onNext={playNext}
                             onPrev={playPrev}
                             onEnded={playNext}
-                            onTimeUpdate={(time: number) => setCurrentTime(time)}
                             isPlaying={isPlaying}
                             onTogglePlay={togglePlay}
                             autoPlay
@@ -263,17 +301,15 @@ export const GlobalPlayer = () => {
                 </div>
             )}
 
-            {/* Режим Picture-in-Picture (Ультра-стильный дизайн) */}
+            {/* Режим Picture-in-Picture */}
             {isPipOpen &&
                 renderPip(
                     <div className="relative h-full w-full bg-zinc-950/90 backdrop-blur-2xl text-white p-4 flex flex-col justify-between select-none font-sans overflow-hidden border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)]">
-                        {/* Фоновое мягкое амбиентное свечение от обложки */}
                         <div
                             className="absolute -inset-10 -z-10 blur-[60px] opacity-60 pointer-events-none transition-colors duration-700 scale-125"
                             style={{ backgroundColor: ambientColor }}
                         />
 
-                        {/* Верхняя строка: Статус и кнопка возврата */}
                         <div className="flex items-center justify-between z-10">
                             <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
@@ -293,7 +329,6 @@ export const GlobalPlayer = () => {
                             </button>
                         </div>
 
-                        {/* Центральный блок: Обложка + Трек-инфо */}
                         <div className="flex items-center gap-4 z-10 my-auto">
                             <div
                                 className="w-16 h-16 sm:w-18 sm:h-18 rounded-xl overflow-hidden shrink-0 bg-zinc-900 border border-white/20 shadow-xl relative group"
@@ -305,7 +340,6 @@ export const GlobalPlayer = () => {
                                     <div className="w-full h-full flex items-center justify-center text-xl">🎵</div>
                                 )}
 
-                                {/* Эквалайзер на обложке, если трек играет */}
                                 {isPlaying && (
                                     <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
                                         <div className="flex items-end gap-0.5 h-4">
@@ -327,9 +361,8 @@ export const GlobalPlayer = () => {
                             </div>
                         </div>
 
-                        {/* Нижняя часть: Компактный плеер */}
                         <div className="z-10 w-full pt-1">
-                            <CustomAudioPlayer
+                            <MemoizedCustomAudioPlayer
                                 src={audioSrc}
                                 title={currentTrack.title}
                                 coverSrc={coverSrc}
@@ -339,10 +372,10 @@ export const GlobalPlayer = () => {
                                 isShuffle={isShuffle}
                                 onToggleRepeat={toggleRepeatMode}
                                 onToggleShuffle={toggleShuffle}
+                                trackId={currentTrack._id}
                                 onNext={playNext}
                                 onPrev={playPrev}
                                 onEnded={playNext}
-                                onTimeUpdate={(time: number) => setCurrentTime(time)}
                                 isPlaying={isPlaying}
                                 onTogglePlay={togglePlay}
                                 autoPlay

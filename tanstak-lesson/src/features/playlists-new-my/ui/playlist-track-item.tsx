@@ -11,12 +11,12 @@ interface Track {
     audioUrl?: string;
     coverUrl?: string | null;
 }
-
 interface PlaylistTrackItemProps {
     track: Track;
     index: number;
     isCurrent: boolean;
-    onPlay: () => void; // Можно оставить для совместимости, но логику плеера берем из контекста
+    playlistTracks?: Track[]; // Добавили пропс
+    onPlay: () => void;
     onRequestRemove: () => void;
     getImageUrl: (url?: string | null) => string;
 }
@@ -24,13 +24,11 @@ interface PlaylistTrackItemProps {
 export const PlaylistTrackItem = ({
                                       track,
                                       index,
+                                      playlistTracks = [], // Принимаем массив треков
                                       onRequestRemove,
                                       getImageUrl
                                   }: PlaylistTrackItemProps) => {
-    // Достаем глобальный стейт плеера точно так же, как в TrackList
     const { currentTrack, playTrack, closePlayer } = useAudioPlayer();
-
-    // Трек играет прямо сейчас, если его ID совпадает с текущим в плеере
     const isPlaying = currentTrack?._id === track._id;
 
     // Подключаем хук сортировки от dnd-kit
@@ -56,6 +54,7 @@ export const PlaylistTrackItem = ({
         if (isPlaying) {
             closePlayer();
         } else {
+            // Передаем текущий трек И ВЕСЬ ПЛЕЙЛИСТ вторым аргументом!
             playTrack(
                 {
                     _id: track._id,
@@ -64,9 +63,13 @@ export const PlaylistTrackItem = ({
                     fileUrl: track.fileUrl || track.audioUrl || "",
                     coverUrl: track.coverUrl
                 },
-                // Если у тебя есть массив всех треков плейлиста, можно передать его вторым аргументом,
-                // чтобы работало переключение next/prev, если контекст это поддерживает:
-                // [track]
+                playlistTracks.map(t => ({
+                    _id: t._id,
+                    title: t.title,
+                    artist: t.artist || "Неизвестный исполнитель",
+                    fileUrl: t.fileUrl || t.audioUrl || "",
+                    coverUrl: t.coverUrl
+                }))
             );
         }
     };
