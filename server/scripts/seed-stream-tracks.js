@@ -24,28 +24,23 @@ const run = async () => {
                 const artist = t.artist.name
 
                 // Проверяем, нет ли уже такого трека в базе, чтобы не дублировать
-                const existing = await Track.findOne({ title, artist })
-                if (existing) {
-                    console.log(`— Пропущен (уже есть): ${artist} - ${title}`)
-                    continue
-                }
-
-                console.log(`⏳ Обработка: ${artist} - ${title}`)
-
-                // Получаем обложку из Deezer и стрим с YouTube
                 const trackInfo = await findAndStreamTrack(title, artist)
 
+                const existing = await Track.findOne({ title: trackInfo.title, artist: trackInfo.artist })
+                if (existing) {
+                    console.log(`— Пропущен (уже есть): ${trackInfo.artist} - ${trackInfo.title}`)
+                    continue
+                }
                 // Сохраняем в MongoDB
                 await Track.create({
                     userId: SEED_USER_ID,
                     title: trackInfo.title,
                     artist: trackInfo.artist,
-                    fileUrl: trackInfo.fileUrl,     // Прямая ссылка на стрим YouTube
-                    coverUrl: trackInfo.coverUrl,   // Обложка из Deezer
+                    fileUrl: '',                    // аудио стримится через бэкенд
+                    coverUrl: trackInfo.coverUrl,
                     isSeed: true,
-                    isStreamed: true                // Флаг стрима
+                    isStreamed: true
                 })
-
                 console.log(`✓ Успешно добавлен: ${trackInfo.artist} - ${trackInfo.title}`)
 
                 // 💡 Обязательная пауза в 2 секунды между запросами,

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ChangeEvent, memo } from "react";
+import { useState, useRef, useEffect, type ChangeEvent, memo, useCallback } from "react";
 import { AudioVisualizer } from "./audio-visualizer";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx";
@@ -44,7 +44,6 @@ const RepeatOneIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-// Прогресс-бар на рефах: 0 ререндеров React при воспроизведении 60 FPS
 type ProgressBarProps = {
     audioRef: React.RefObject<HTMLAudioElement | null>;
     duration: number;
@@ -79,15 +78,13 @@ const AudioProgressBar = memo(({
             if (audioRef.current) {
                 const time = audioRef.current.currentTime;
 
-                // Напрямую обновляем value и стили инпута без ререндера React
                 if (inputRef.current) {
                     inputRef.current.value = String(time);
                     const dur = duration || 1;
                     const percent = (time / dur) * 100;
-                    inputRef.current.style.background = `linear-gradient(to right, ${ambientColor} ${percent}%, #3f3f46 ${percent}%)`;
+                    inputRef.current.style.background = `linear-gradient(to right, ${ambientColor} ${percent}%, rgba(255, 255, 255, 0.15) ${percent}%)`;
                 }
 
-                // Напрямую обновляем текстовый спан времени
                 if (currentTimeRef.current) {
                     currentTimeRef.current.textContent = formatTime(time);
                 }
@@ -121,8 +118,9 @@ const AudioProgressBar = memo(({
                 disabled={!isSeekable}
                 onChange={handleProgressChange}
                 style={{
-                    ["--thumb-color" as any]: ambientColor,
-                }}
+                    background: `linear-gradient(to right, ${ambientColor} 0%, rgba(255, 255, 255, 0.15) 0%)`,
+                    '--thumb-color': ambientColor,
+                } as React.CSSProperties}
                 className={`w-full h-1.5 rounded-lg appearance-none focus:outline-none transition-all
                     ${!isSeekable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                     disabled:opacity-40 disabled:cursor-not-allowed
@@ -130,15 +128,19 @@ const AudioProgressBar = memo(({
                     [&::-webkit-slider-thumb]:w-3.5
                     [&::-webkit-slider-thumb]:h-3.5
                     [&::-webkit-slider-thumb]:rounded-[4px]
-                    [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+                    [&::-webkit-slider-thumb]:bg-white
+                    [&::-webkit-slider-thumb]:ring-2
+                    [&::-webkit-slider-thumb]:ring-[var(--thumb-color)]
                     [&::-webkit-slider-thumb]:shadow-md
                     [&::-webkit-slider-thumb]:disabled:cursor-not-allowed
                     [&::-moz-range-thumb]:appearance-none
                     [&::-moz-range-thumb]:w-3.5
                     [&::-moz-range-thumb]:h-3.5
                     [&::-moz-range-thumb]:rounded-[4px]
-                    [&::-moz-range-thumb]:bg-[var(--thumb-color)]
-                    [&::-moz-range-thumb]:border-0`}
+                    [&::-moz-range-thumb]:bg-white
+                    [&::-moz-range-thumb]:border-0
+                    [&::-moz-range-thumb]:ring-2
+                    [&::-moz-range-thumb]:ring-[var(--thumb-color)]`}
             />
             <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
                 <span ref={currentTimeRef}>0:00</span>
@@ -171,6 +173,61 @@ export const CustomAudioPlayer = ({
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
     const [duration, setDuration] = useState(0);
+
+    const [trackColor, setTrackColor] = useState(ambientColor);
+
+    useEffect(() => {
+        if (!coverSrc) {
+            queueMicrotask(() => setTrackColor(ambientColor));
+            return;
+        }
+
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = coverSrc;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            canvas.width = 30;
+            canvas.height = 30;
+            ctx.drawImage(img, 0, 0, 30, 30);
+
+            try {
+                const data = ctx.getImageData(0, 0, 30, 30).data;
+                let r = 0, g = 0, b = 0, count = 0;
+
+                for (let i = 0; i < data.length; i += 16) {
+                    const red = data[i]!;
+                    const green = data[i + 1]!;
+                    const blue = data[i + 2]!;
+                    const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+                    if (brightness > 30 && brightness < 220) {
+                        r += red;
+                        g += green;
+                        b += blue;
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    r = Math.floor(r / count);
+                    g = Math.floor(g / count);
+                    b = Math.floor(b / count);
+                    setTrackColor(`rgb(${r}, ${g}, ${b})`);
+                } else {
+                    setTrackColor(ambientColor);
+                }
+            } catch {
+                setTrackColor(ambientColor);
+            }
+        };
+        img.onerror = () => {
+            setTrackColor(ambientColor);
+        };
+    }, [coverSrc, ambientColor]);
 
     const [volume, setVolume] = useState<number>(() => {
         const savedVolume = localStorage.getItem('player-volume');
@@ -255,7 +312,7 @@ export const CustomAudioPlayer = ({
         };
     }, [src, autoPlay]);
 
-    const togglePlay = () => {
+    const togglePlay = useCallback(() => {
         if (!audioRef.current) return;
 
         if (isPlaying) {
@@ -268,7 +325,7 @@ export const CustomAudioPlayer = ({
                 localStorage.setItem('player-was-playing', 'true');
             }).catch(console.error);
         }
-    };
+    }, [isPlaying]);
 
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
@@ -355,7 +412,7 @@ export const CustomAudioPlayer = ({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isPlaying, onNext, onPrev]);
+    }, [isPlaying, onNext, onPrev, togglePlay]);
 
     const handleVolumeChange = (e: ChangeEvent<HTMLInputElement>) => {
         const newVolume = Number(e.target.value);
@@ -382,12 +439,12 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
-            {/* 1. Изолированный прогресс-бар на рефах */}
+            {/* 1. Прогресс-бар трека с цветом обложки */}
             <AudioProgressBar
                 audioRef={audioRef}
                 duration={duration}
                 isSeekable={isSeekable}
-                ambientColor={ambientColor}
+                ambientColor={trackColor}
                 onTimeUpdate={onTimeUpdate}
                 src={src}
             />
@@ -398,7 +455,7 @@ export const CustomAudioPlayer = ({
                     <AudioVisualizer
                         audioRef={audioRef}
                         isPlaying={isPlaying}
-                        color={ambientColor}
+                        color={trackColor}
                     />
                 </div>
 
@@ -432,7 +489,8 @@ export const CustomAudioPlayer = ({
                         onClick={togglePlay}
                         type="button"
                         disabled={isBuffering && !duration}
-                        className="w-10 h-10 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/70 text-white rounded-full transition-all shrink-0 shadow-md cursor-pointer"
+                        style={{ backgroundColor: trackColor }}
+                        className="w-10 h-10 flex items-center justify-center hover:opacity-90 disabled:opacity-70 text-white rounded-full transition-all shrink-0 shadow-md cursor-pointer"
                         title={isPlaying ? "Пауза" : "Воспроизвести"}
                     >
                         {isBuffering ? (
@@ -512,22 +570,26 @@ export const CustomAudioPlayer = ({
                         value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
                         style={{
-                            background: `linear-gradient(to right, #d4d4d8 ${volumePercent}%, #3f3f46 ${volumePercent}%)`,
-                            ["--thumb-color" as any]: ambientColor,
-                        }}
+                            background: `linear-gradient(to right, ${trackColor} ${volumePercent}%, rgba(255, 255, 255, 0.15) ${volumePercent}%)`,
+                            '--thumb-color': trackColor,
+                        } as React.CSSProperties}
                         className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all
                             [&::-webkit-slider-thumb]:appearance-none
-                            [&::-webkit-slider-thumb]:w-3.5
-                            [&::-webkit-slider-thumb]:h-3.5
+                            [&::-webkit-slider-thumb]:w-2.5
+                            [&::-webkit-slider-thumb]:h-2.5
                             [&::-webkit-slider-thumb]:rounded-[4px]
-                            [&::-webkit-slider-thumb]:bg-[var(--thumb-color)]
+                            [&::-webkit-slider-thumb]:bg-white
+                            [&::-webkit-slider-thumb]:ring-2
+                            [&::-webkit-slider-thumb]:ring-[var(--thumb-color)]
                             [&::-webkit-slider-thumb]:shadow-md
                             [&::-moz-range-thumb]:appearance-none
                             [&::-moz-range-thumb]:w-3.5
                             [&::-moz-range-thumb]:h-3.5
                             [&::-moz-range-thumb]:rounded-[4px]
-                            [&::-moz-range-thumb]:bg-[var(--thumb-color)]
-                            [&::-moz-range-thumb]:border-0"
+                            [&::-moz-range-thumb]:bg-white
+                            [&::-moz-range-thumb]:border-0
+                            [&::-moz-range-thumb]:ring-2
+                            [&::-moz-range-thumb]:ring-[var(--thumb-color)]"
                     />
                     <span className="text-[11px] font-mono text-zinc-400 w-8 text-right select-none">
                         {Math.round(volumePercent)}%

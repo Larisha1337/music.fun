@@ -14,8 +14,22 @@ const searchQueries = [
     { title: "Believer", artist: "Imagine Dragons" },
     { title: "You Give Love A Bad Name", artist: "Bon Jovi" },
     { title: "Smells Like Teen Spirit", artist: "Nirvana" },
-    // Можешь добавлять сюда сколько угодно своих треков в формате:
-    // { title: "Название", artist: "Исполнитель" },
+
+    // 🎸 Добавленные крутые треки:
+    { title: "Californication", artist: "Red Hot Chili Peppers" },
+    { title: "Master of Puppets", artist: "Metallica" },
+    { title: "Enter Sandman", artist: "Metallica" },
+    { title: "Seven Nation Army", artist: "The White Stripes" },
+    { title: "Boulevard of Broken Dreams", artist: "Green Day" },
+    { title: "Starboy", artist: "The Weeknd" },
+    { title: "Save Your Tears", artist: "The Weeknd" },
+    { title: "Lose Yourself", artist: "Eminem" },
+    { title: "The Real Slim Shady", artist: "Eminem" },
+    { title: "In the Air Tonight", artist: "Phil Collins" },
+    { title: "Animals", artist: "Martin Garrix" },
+    { title: "Wake Me Up", artist: "Avicii" },
+    { title: "Levels", artist: "Avicii" },
+    { title: "Smooth Criminal", artist: "Michael Jackson" }
 ]
 
 const run = async () => {
@@ -29,28 +43,22 @@ const run = async () => {
             try {
                 const { title, artist } = item
 
-                // Проверяем, нет ли уже такого трека в базе, чтобы избежать дубликатов
-                const existing = await Track.findOne({ title, artist })
-                if (existing) {
-                    console.log(`— Пропущен (уже есть): ${artist} - ${title}`)
-                    continue
-                }
-
-                console.log(`⏳ Обработка: ${artist} - ${title}`)
-
-                // Получаем обложку из Deezer и аудиопоток с YouTube
                 const trackInfo = await findAndStreamTrack(title, artist)
 
+                const existing = await Track.findOne({ title: trackInfo.title, artist: trackInfo.artist })
+                if (existing) {
+                    console.log(`— Пропущен (уже есть): ${trackInfo.artist} - ${trackInfo.title}`)
+                    continue
+                }
                 await Track.create({
                     userId: SEED_USER_ID,
                     title: trackInfo.title,
                     artist: trackInfo.artist,
-                    fileUrl: trackInfo.fileUrl,     // Ссылка на полный стрим YouTube
-                    coverUrl: trackInfo.coverUrl,   // Обложка из Deezer
+                    fileUrl: '',                    // аудио стримится через бэкенд
+                    coverUrl: trackInfo.coverUrl,
                     isSeed: true,
-                    isStreamed: true                // Флаг стрима
+                    isStreamed: true
                 })
-
                 console.log(`✓ Успешно добавлен: ${trackInfo.artist} - ${trackInfo.title}`)
 
                 // Пауза 2 секунды между запросами, чтобы YouTube не банил IP

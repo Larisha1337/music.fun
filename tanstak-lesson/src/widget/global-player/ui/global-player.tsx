@@ -16,6 +16,8 @@ const getMediaUrl = (url?: string | null): string | null => {
         : `${MY_API_BASE}${url}`;
 };
 
+
+
 // Изолированный компонент для текста песни, чтобы тики таймера не перерендеривали GlobalPlayer
 const FullscreenLyricsBox = ({ track }: { track: { _id: string; title: string; artist?: string } }) => {
     const [lrcString, setLrcString] = useState("");
@@ -127,11 +129,11 @@ export const GlobalPlayer = () => {
     if (!currentTrack) return null;
 
     // 1. Проверяем, есть ли реальный загруженный файл в R2
-    const hasCustomFile = Boolean(
-        currentTrack?.fileUrl &&
-        currentTrack.fileUrl.trim() !== "" &&
-        !currentTrack.fileUrl.includes("dzcdn.net")
-    );
+    // Источник считается «своим файлом» только если это не YouTube/Deezer-ссылка
+    const isExternalUrl = (url?: string | null) =>
+        !url || url.trim() === "" || /googlevideo\.com|youtube\.com|dzcdn\.net/.test(url);
+
+    const hasCustomFile = !isExternalUrl(currentTrack?.fileUrl);
 
     // 2. Источник: свой файл — из R2, YouTube — через бэкенд стрим
     const audioSrc = hasCustomFile

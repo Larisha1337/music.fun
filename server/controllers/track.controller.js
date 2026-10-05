@@ -2,6 +2,7 @@ import Track from '../models/Track.js'
 import User from '../models/User.js'
 import { uploadToR2, deleteFromR2, getFileStreamFromR2 } from '../service/r2.js'
 import youtubedl from 'yt-dlp-exec'
+import axios from 'axios';
 
 // 1. Глобальная лента (с авторами)
 export const getAllTracks = async (req, res) => {
@@ -65,6 +66,24 @@ export const getMyTracks = async (req, res) => {
     }
 }
 
+// Запрос анализа в Python-микросервис
+export const analyzeTrackWithPython = async (fileUrl) => {
+    try {
+        const response = await axios.post(
+            'http://127.0.0.1:8000/analyze',
+            { url: fileUrl },
+            { timeout: 60000 }
+        );
+        return response.data; // { bpm: 120, key: "Am" }
+    } catch (error) {
+        console.error(
+            '[Python Analyzer Error]:',
+            error.response?.data || error.message
+        );
+        return { bpm: null, key: null };
+    }
+};
+
 // 3. Создание трека с возможностью загрузить свой MP3 и обложку
 export const createTrack = async (req, res) => {
     try {
@@ -87,15 +106,24 @@ export const createTrack = async (req, res) => {
         // Если пользователь прикрепил свой MP3 файл
         if (audioFile) {
             fileUrl = await uploadToR2(audioFile, 'tracks');
-            isStreamed = false; // Это локальный файл, стримить через yt-dlp не нужно!
-        } else {
-            // Если файл не прикрепили, это трек для стриминга по названию
-            isStreamed = true;
+            isStreamed = false;
         }
 
         let coverUrl = null;
         if (coverFile) {
             coverUrl = await uploadToR2(coverFile, 'track-covers');
+        }
+
+        // Python-анализатор (только если есть загруженный файл)
+        let bpm = null;
+        let musicalKey = null;
+
+        if (fileUrl) {
+            console.log('[Analyzer] Отправка трека на анализ в Python...');
+            const analysis = await analyzeTrackWithPython(fileUrl);
+            bpm = analysis.bpm;
+            musicalKey = analysis.key;
+            console.log(`[Analyzer] Результат: BPM=${bpm}, Key=${musicalKey}`);
         }
 
         const user = await User.findById(userId).select('email name').lean()
@@ -104,12 +132,12 @@ export const createTrack = async (req, res) => {
             userId,
             title: title.trim(),
             artist: artist?.trim() || '',
-            album: 'Uploaded Album',
-            duration: 180, // Можно вычислять или передавать
             coverUrl,
-            fileUrl, // Здесь будет ссылка на R2 или пустая строка для стрима
+            fileUrl,
             isSeed: false,
             isStreamed,
+            bpm,
+            musicalKey,
         })
 
         const trackWithAuthor = {
@@ -124,7 +152,7 @@ export const createTrack = async (req, res) => {
     }
 }
 
-// 4. Универсальный стриминг аудио (для файлов из R2 и YouTube)
+// 4. Универсальный стриминг аудио (файлы из R2 и YouTube)
 export const streamTrackAudio = async (req, res) => {
     try {
         const track = await Track.findById(req.params.id);
@@ -132,62 +160,69 @@ export const streamTrackAudio = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' });
         }
 
-        // ВАРИАНТ А: У трека есть загруженный файл в R2
-        if (track.fileUrl && track.fileUrl.trim() !== '') {
-            console.log(`[Stream] Стриминг файла из R2 для трека: "${track.title}"`);
+        const r2Domain = process.env.R2_PUBLIC_DOMAIN;
+        const isR2File = Boolean(
+            track.fileUrl && r2Domain && track.fileUrl.startsWith(r2Domain)
+        );
 
+        // ВАРИАНТ А: загруженный файл в R2
+        if (isR2File) {
             try {
                 const r2Response = await getFileStreamFromR2(track.fileUrl, req.headers.range);
 
-                if (r2Response && r2Response.Body) {
-                    const headers = {
-                        'Content-Type': r2Response.ContentType || 'audio/mpeg',
-                        'Accept-Ranges': 'bytes',
-                    };
-
-                    if (r2Response.ContentLength !== undefined) {
-                        headers['Content-Length'] = r2Response.ContentLength;
-                    }
-                    if (r2Response.ContentRange) {
-                        headers['Content-Range'] = r2Response.ContentRange;
-                    }
-
-                    // Если браузер запросил кусок (Range), отдаем 206, иначе 200
-                    const statusCode = req.headers.range ? 206 : 200;
-                    res.writeHead(statusCode, headers);
-
-                    return r2Response.Body.pipe(res);
+                if (!r2Response || !r2Response.Body) {
+                    return res.status(404).json({ message: 'Файл не найден в хранилище' });
                 }
+
+                const headers = {
+                    'Content-Type': r2Response.ContentType || 'audio/mpeg',
+                    'Accept-Ranges': 'bytes',
+                };
+                if (r2Response.ContentLength !== undefined) {
+                    headers['Content-Length'] = r2Response.ContentLength;
+                }
+                if (r2Response.ContentRange) {
+                    headers['Content-Range'] = r2Response.ContentRange;
+                }
+
+                res.writeHead(req.headers.range ? 206 : 200, headers);
+                return r2Response.Body.pipe(res);
             } catch (r2Error) {
                 console.error('[R2 Stream Error]:', r2Error);
                 if (!res.headersSent) {
                     return res.status(500).json({ message: 'Ошибка при чтении файла из хранилища' });
                 }
+                return;
             }
         }
 
-        // ВАРИАНТ Б: Стриминг с YouTube через yt-dlp
+        // ВАРИАНТ Б: стриминг с YouTube через yt-dlp (проксируем через бэкенд)
         const searchQuery = track.artist
-            ? `${track.artist} - ${track.title} official audio`
-            : `${track.title} song`;
+            ? `${track.artist} ${track.title}`
+            : track.title;
 
-        console.log(`[Stream] Генерация YouTube потока для: "${searchQuery}"`);
+        console.log(`[Stream] YouTube поток для: "${searchQuery}"`);
 
-        // 🌟 Обязательные заголовки, чтобы поток не обрывался на 30-й секунде
         res.setHeader('Content-Type', 'audio/webm');
-        res.setHeader('Accept-Ranges', 'none'); // Говорим браузеру, что перемотки здесь нет
-        res.setHeader('Transfer-Encoding', 'chunked');
+        res.setHeader('Accept-Ranges', 'none');
+        res.setHeader('Cache-Control', 'no-store');
 
         const subprocess = youtubedl.exec(
-            `ytsearch1:${searchQuery}`,
+            `ytsearch1:${searchQuery} audio`,
             {
                 f: 'bestaudio',
                 o: '-',
                 q: true,
-                noCheckCertificates: true
+                noPlaylist: true,
+                noCheckCertificates: true,
+                socketTimeout: 10
             },
-            { stdio: ['ignore', 'pipe', 'ignore'] }
+            { stdio: ['ignore', 'pipe', 'pipe'] }
         );
+
+        subprocess.stderr.on('data', (data) => {
+            console.error(`[yt-dlp stderr]: ${data.toString()}`);
+        });
 
         subprocess.stdout.pipe(res);
 
@@ -195,10 +230,12 @@ export const streamTrackAudio = async (req, res) => {
             console.error('[Stream] Ошибка yt-dlp:', err);
             if (!res.headersSent) {
                 res.status(500).json({ message: 'Ошибка воспроизведения потока' });
+            } else {
+                res.end();
             }
         });
 
-        req.on('close', () => {
+        res.on('close', () => {
             subprocess.kill();
         });
 
@@ -343,4 +380,3 @@ export const deleteTrack = async (req, res) => {
         res.status(500).json({ message: 'Ошибка удаления трека' })
     }
 }
-
