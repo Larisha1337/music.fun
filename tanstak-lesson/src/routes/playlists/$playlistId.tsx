@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import {
     DndContext,
     closestCenter,
@@ -25,7 +25,6 @@ import {
 import { useAudioPlayer } from "@/shared/ui/lib/audio-player-context";
 import { ConfirmModal } from "@/shared/ui/modal/confirm-modal";
 import { useAllTracksQuery } from "@/features/tracks/public/api/use-all-tracks-query.ts";
-import { PlaylistHeader } from "@/features/playlists-new-my/ui/playlist-header";
 import { PlaylistTrackItem } from "@/features/playlists-new-my/ui/playlist-track-item";
 import { PlaylistModal } from "@/features/playlists-new-my/ui/playlist-modal";
 
@@ -54,32 +53,25 @@ function PlaylistDetailPage() {
     const { mutate: updatePlaylist, isPending: isUpdating } = useUpdatePlaylistMutation(playlistId);
     const { mutate: deletePlaylist, isPending: isDeleting } = useDeletePlaylistMutation();
 
-    // Достаем closePlayer для сброса плеера при удалении текущего трека
     const { currentTrack, playTrack, closePlayer } = useAudioPlayer();
 
-    // Локальный стейт треков для мгновенного визуального перетаскивания
     const [localTracks, setLocalTracks] = useState<any[]>([]);
 
-    // Синхронизируем локальный стейт при загрузке/обновлении данных с сервера
     useEffect(() => {
         if (playlist?.tracks) {
             setLocalTracks(playlist.tracks);
         }
     }, [playlist?.tracks]);
 
-    // Настройка сенсоров для dnd-kit (чтобы перетаскивание работало плавно)
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 5, // Требуется сдвинуть курсор на 5px, чтобы начать перетаскивание (не мешает кликам)
-            },
+            activationConstraint: { distance: 5 },
         }),
         useSensor(KeyboardSensor, {
             coordinateGetter: sortableKeyboardCoordinates,
         })
     );
 
-    // Состояния модалок
     const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
     const [trackToRemove, setTrackToRemove] = useState<{ id: string; title: string } | null>(null);
     const [isDeletePlaylistConfirmOpen, setIsDeletePlaylistConfirmOpen] = useState(false);
@@ -92,7 +84,6 @@ function PlaylistDetailPage() {
         return <div className="p-6 text-red-400">Плейлист не найден</div>;
     }
 
-    // Обработчик окончания перетаскивания
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) return;
@@ -102,9 +93,8 @@ function PlaylistDetailPage() {
             const newIndex = localTracks.findIndex((t) => t._id === over.id);
 
             const newTracks = arrayMove(localTracks, oldIndex, newIndex);
-            setLocalTracks(newTracks); // Мгновенно обновляем интерфейс
+            setLocalTracks(newTracks);
 
-            // Формируем массив ID в новом порядке и отправляем на бэкенд
             const trackIds = newTracks.map((t) => t._id);
             const formData = new FormData();
             formData.append("name", playlist.name);
@@ -114,7 +104,6 @@ function PlaylistDetailPage() {
         }
     };
 
-    // Обработчики
     const handleSavePlaylist = (formData: FormData) => {
         updatePlaylist(formData, {
             onSuccess: () => setIsPlaylistModalOpen(false)
@@ -123,12 +112,9 @@ function PlaylistDetailPage() {
 
     const handleConfirmRemoveTrack = () => {
         if (!trackToRemove) return;
-
-        // Если удаляемый трек сейчас играет — закрываем плеер, чтобы он не оставался в кэше/памяти
         if (currentTrack?._id === trackToRemove.id) {
             closePlayer();
         }
-
         removeTrack(trackToRemove.id, {
             onSuccess: () => setTrackToRemove(null)
         });
@@ -139,49 +125,117 @@ function PlaylistDetailPage() {
             onSuccess: () => {
                 setIsDeletePlaylistConfirmOpen(false);
                 setIsPlaylistModalOpen(false);
-                closePlayer(); // Также закрываем плеер при удалении всего плейлиста
-                navigate({ to: "/" });
+                closePlayer();
+                navigate({ to: "/playlists" });
             }
         });
     };
 
+    const cover = getImageUrl(playlist.coverUrl);
+
     return (
-        <div className="flex flex-col gap-6 p-8 text-zinc-100 w-full min-h-full bg-gradient-to-b from-[#2a2136] via-[#121212] to-[#121212]">
-            {/* Шапка плейлиста на всю ширину */}
-            <PlaylistHeader
-                playlist={playlist}
-                onPlayPlaylist={() => localTracks[0] && playTrack(localTracks[0], localTracks)}
-                onOpenModal={() => setIsPlaylistModalOpen(true)}
-                getImageUrl={getImageUrl}
-            />
+        <div className="flex flex-col gap-6 p-6 sm:p-8 text-zinc-100 w-full min-h-full bg-[#121212] overflow-y-auto custom-scrollbar">
+            {/* Кнопка возврата назад (для мобильных) */}
+            <div className="flex md:hidden items-center">
+                <Link
+                    to="/playlists"
+                    className="inline-flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium transition-colors py-1.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5"
+                >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>К списку плейлистов</span>
+                </Link>
+            </div>
 
-            {/* Список треков на всю ширину */}
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={localTracks.map((t) => t._id)} strategy={verticalListSortingStrategy}>
-                    <div className="flex flex-col gap-1 w-full">
-                        {localTracks.length === 0 ? (
-                            <div className="text-zinc-500 text-sm p-12 text-center bg-[#18181b]/40 rounded-2xl border border-[#27272a]/50">
-                                В этом плейлисте пока нет треков.
-                            </div>
-                        ) : (
-                            localTracks.map((track, index) => (
-                                <PlaylistTrackItem
-                                    key={track._id}
-                                    track={track}
-                                    index={index}
-                                    isCurrent={currentTrack?._id === track._id}
-                                    playlistTracks={localTracks}
-                                    onPlay={() => playTrack(track, localTracks)}
-                                    onRequestRemove={() => setTrackToRemove({ id: track._id, title: track.title })}
-                                    getImageUrl={getImageUrl}
-                                />
-                            ))
-                        )}
+            {/* КОМПАКТНАЯ ШАПКА ПЛЕЙЛИСТА (в стиле Spotify) */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 rounded-2xl bg-gradient-to-r from-indigo-950/40 via-[#18181b]/50 to-[#121212] border border-white/5 shadow-xl">
+                {/* Аккуратная обложка фиксированного размера */}
+                <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-xl bg-zinc-800 shadow-lg flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
+                    {cover ? (
+                        <img src={cover} alt={playlist.name} className="w-full h-full object-cover" />
+                    ) : (
+                        <span className="text-4xl">🎵</span>
+                    )}
+                </div>
+
+                {/* Информация и кнопки управления */}
+                <div className="flex flex-col gap-2 min-w-0 flex-1">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                        Плейлист
+                    </span>
+                    <h1 className="text-2xl sm:text-4xl font-extrabold text-white truncate" title={playlist.name}>
+                        {playlist.name}
+                    </h1>
+                    {playlist.description && (
+                        <p className="text-xs sm:text-sm text-zinc-400 line-clamp-2">
+                            {playlist.description}
+                        </p>
+                    )}
+                    <div className="flex items-center gap-2 text-xs text-zinc-400 mt-1">
+                        <span className="text-white font-medium">Медиатека</span>
+                        <span>•</span>
+                        <span>{localTracks.length} треков</span>
                     </div>
-                </SortableContext>
-            </DndContext>
 
-            {/* Единое модальное окно управления плейлистом */}
+                    {/* Кнопки действий (Плей / Редактировать) */}
+                    <div className="flex items-center gap-3 mt-3">
+                        {localTracks.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => playTrack(localTracks[0], localTracks)}
+                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2"
+                            >
+                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                                Слушать
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setIsPlaylistModalOpen(true)}
+                            className="px-4 py-2.5 bg-white/10 hover:bg-white/15 text-white font-semibold text-xs rounded-xl transition-all cursor-pointer border border-white/5"
+                        >
+                            Редактировать
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* СПИСОК ТРЕКОВ НА ВСЮ ШИРИНУ */}
+            <div className="flex flex-col gap-2 w-full mt-2">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider px-1">
+                    Треки
+                </h3>
+
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={localTracks.map((t) => t._id)} strategy={verticalListSortingStrategy}>
+                        <div className="flex flex-col gap-1.5 w-full">
+                            {localTracks.length === 0 ? (
+                                <div className="text-zinc-500 text-sm p-12 text-center bg-[#18181b]/40 rounded-2xl border border-[#27272a]/50">
+                                    В этом плейлисте пока нет треков. Нажмите «Редактировать», чтобы добавить музыку.
+                                </div>
+                            ) : (
+                                localTracks.map((track, index) => (
+                                    <PlaylistTrackItem
+                                        key={track._id}
+                                        track={track}
+                                        index={index}
+                                        isCurrent={currentTrack?._id === track._id}
+                                        playlistTracks={localTracks}
+                                        onPlay={() => playTrack(track, localTracks)}
+                                        onRequestRemove={() => setTrackToRemove({ id: track._id, title: track.title })}
+                                        getImageUrl={getImageUrl}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    </SortableContext>
+                </DndContext>
+            </div>
+
+            {/* Модальное окно */}
             <PlaylistModal
                 isOpen={isPlaylistModalOpen}
                 onClose={() => setIsPlaylistModalOpen(false)}
@@ -196,7 +250,7 @@ function PlaylistDetailPage() {
                 getImageUrl={getImageUrl}
             />
 
-            {/* Подтверждение удаления трека из плейлиста */}
+            {/* Модалки подтверждения */}
             <ConfirmModal
                 isOpen={!!trackToRemove}
                 onClose={() => setTrackToRemove(null)}
@@ -206,7 +260,6 @@ function PlaylistDetailPage() {
                 confirmText="Удалить"
             />
 
-            {/* Подтверждение удаления самого плейлиста */}
             <ConfirmModal
                 isOpen={isDeletePlaylistConfirmOpen}
                 onClose={() => setIsDeletePlaylistConfirmOpen(false)}
