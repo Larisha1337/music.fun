@@ -9,25 +9,31 @@ export const GlobalTrackList = () => {
     const [searchQuery, setSearchQuery] = useState('')
 
     const debouncedSearch = useDebounce(searchQuery, 300)
+    const normalizedQuery = debouncedSearch.trim().toLowerCase()
 
     const filteredTracks = useMemo(() => {
-        if (!debouncedSearch.trim()) return tracks
+        if (!normalizedQuery) return tracks
 
-        const query = debouncedSearch.toLowerCase()
-        return tracks.filter((track) => {
-            const titleMatch = track.title.toLowerCase().includes(query)
-            const emailMatch = track.authorEmail?.toLowerCase().includes(query)
-            return titleMatch || emailMatch
-        })
-    }, [tracks, debouncedSearch])
+        return tracks.filter((track) =>
+            track.title.toLowerCase().includes(normalizedQuery) ||
+            track.artist?.toLowerCase().includes(normalizedQuery) ||
+            track.authorEmail?.toLowerCase().includes(normalizedQuery)
+        )
+    }, [tracks, normalizedQuery])
 
     return (
-        <div className="w-full">
+        <div className="w-full flex flex-col gap-3 sm:gap-4">
             <TrackSearch
                 value={searchQuery}
                 onChange={setSearchQuery}
-                placeholder="Поиск по названию или автору загрузки..."
+                placeholder="Поиск по названию, исполнителю или автору..."
             />
+
+            {normalizedQuery && !isLoading && (
+                <p className="text-xs text-zinc-500 px-1">
+                    Найдено: {filteredTracks.length}
+                </p>
+            )}
 
             <TrackList
                 tracks={filteredTracks}

@@ -6,6 +6,7 @@ type Track = {
     _id: string
     title: string
     fileUrl: string
+    artist?: string
     coverUrl?: string | null
     authorEmail?: string
 }

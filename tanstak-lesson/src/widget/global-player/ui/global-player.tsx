@@ -16,9 +16,6 @@ const getMediaUrl = (url?: string | null): string | null => {
         : `${MY_API_BASE}${url}`;
 };
 
-
-
-// Изолированный компонент для текста песни, чтобы тики таймера не перерендеривали GlobalPlayer
 const FullscreenLyricsBox = ({ track }: { track: { _id: string; title: string; artist?: string } }) => {
     const [lrcString, setLrcString] = useState("");
     const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
@@ -83,7 +80,6 @@ const FullscreenLyricsBox = ({ track }: { track: { _id: string; title: string; a
     );
 };
 
-// 🌟 Мемоизированный плеер, чтобы тики прогресса не дергали родителя
 const MemoizedCustomAudioPlayer = React.memo((props: any) => {
     return <CustomAudioPlayer {...props} />;
 }, (prevProps, nextProps) => {
@@ -128,20 +124,28 @@ export const GlobalPlayer = () => {
 
     if (!currentTrack) return null;
 
-    // 1. Проверяем, есть ли реальный загруженный файл в R2
-    // Источник считается «своим файлом» только если это не YouTube/Deezer-ссылка
     const isExternalUrl = (url?: string | null) =>
         !url || url.trim() === "" || /googlevideo\.com|youtube\.com|dzcdn\.net/.test(url);
 
     const hasCustomFile = !isExternalUrl(currentTrack?.fileUrl);
-
-    // 2. Источник: свой файл — из R2, YouTube — через бэкенд стрим
     const audioSrc = hasCustomFile
         ? getMediaUrl(currentTrack.fileUrl)!
         : `${MY_API_BASE}/api/tracks/${currentTrack._id}/stream`;
-
-    // 3. Флаг перемотки
     const isSeekable = hasCustomFile;
+
+    // Кнопка режима PiP
+    const pipButton = isSupported ? (
+        <button
+            onClick={togglePip}
+            title="Вынести плеер поверх всех окон"
+            aria-label="Вынести плеер поверх всех окон"
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors cursor-pointer shrink-0"
+        >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h12a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+        </button>
+    ) : null;
 
     return (
         <>
@@ -150,10 +154,10 @@ export const GlobalPlayer = () => {
                     className={
                         isFullscreen
                             ? "fixed inset-0 w-screen h-screen z-[9999] bg-[#09090b]/85 backdrop-blur-3xl flex flex-col items-center justify-between p-6 sm:p-10 text-white overflow-hidden transition-all duration-300"
-                            : "fixed bottom-0 left-0 right-0 z-[100] bg-[#18181b]/75 backdrop-blur-xl border-t border-white/15 px-4 py-3 flex flex-row items-center justify-between gap-4 transition-all duration-300"
+                            : "fixed bottom-0 left-0 right-0 z-[100] bg-[#18181b]/75 backdrop-blur-xl border-t border-white/15 px-4 py-3 flex flex-col transition-all duration-300"
                     }
                 >
-                    {/* Сочное фоновое свечение */}
+                    {/* Фоновое свечение */}
                     <div
                         className={
                             isFullscreen
@@ -163,7 +167,7 @@ export const GlobalPlayer = () => {
                         style={{ backgroundColor: ambientColor }}
                     />
 
-                    {/* 1. Полноэкранный хэдер и контент */}
+                    {/* Полноэкранный режим */}
                     {isFullscreen && (
                         <>
                             <div className="w-full max-w-5xl mx-auto flex items-center justify-between z-10 shrink-0 mb-4">
@@ -183,9 +187,7 @@ export const GlobalPlayer = () => {
                                 </button>
                             </div>
 
-                            {/* СТРОГО ЦЕНТРИРОВАННЫЙ КОНТЕЙНЕР */}
                             <div className="w-full max-w-5xl mx-auto flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-16 my-auto z-10 py-2 min-h-0">
-                                {/* Левая часть: Обложка + Название */}
                                 <div className="flex flex-col items-center justify-center text-center gap-6 w-full lg:w-1/2">
                                     <div
                                         className="w-60 h-60 sm:w-72 sm:h-72 lg:w-80 lg:h-80 rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-zinc-900 shrink-0 transition-transform duration-500 hover:scale-[1.02]"
@@ -207,54 +209,17 @@ export const GlobalPlayer = () => {
                                     </div>
                                 </div>
 
-                                {/* Правая часть: Текст песни (изолированный компонент) */}
                                 <FullscreenLyricsBox track={currentTrack} />
                             </div>
                         </>
                     )}
 
-                    {/* 2. Левая часть для обычного режима */}
-                    {!isFullscreen && (
-                        <div
-                            onClick={toggleFullscreen}
-                            className="flex items-center gap-3 w-1/4 min-w-0 shrink-0 cursor-pointer group"
-                            title="Развернуть во весь экран"
-                        >
-                            <div
-                                className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[#27272a] border border-white/15 flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-105"
-                                style={{ boxShadow: `0 6px 24px ${ambientColor}` }}
-                            >
-                                {coverSrc ? (
-                                    <img src={coverSrc} alt={currentTrack.title} className="w-full h-full object-cover" />
-                                ) : (
-                                    <svg className="w-6 h-6 text-zinc-400 fill-current" viewBox="0 0 16 16">
-                                        <path d="M8 3a5 5 0 0 0-5 5v1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a6 6 0 1 1 12 0v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1V8a5 5 0 0 0-5-5z" />
-                                    </svg>
-                                )}
-                            </div>
-                            <div className="flex-1 min-w-0 flex flex-col">
-                                <span className="text-sm font-bold text-white truncate group-hover:text-indigo-400 transition-colors">
-                                    {currentTrack.title}
-                                </span>
-                                <span className="text-[11px] text-zinc-300 truncate">
-                                    {currentTrack.artist || "Неизвестный исполнитель"}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 🌟 3. ЦЕНТРАЛЬНЫЙ БЛОК ПЛЕЕРА */}
-                    <div
-                        className={
-                            isFullscreen
-                                ? "w-full max-w-xl mx-auto shrink-0 pt-3 pb-2 flex flex-col items-center"
-                                : "flex-1 max-w-2xl mx-auto flex flex-col justify-center gap-1 px-4"
-                        }
-                        style={isFullscreen ? ({ "--accent-color": ambientColor } as React.CSSProperties) : undefined}
-                    >
+                    {/* Плеер (в нижней панели или внизу фуллскрина) */}
+                    <div className="w-full flex items-center">
                         <MemoizedCustomAudioPlayer
                             src={audioSrc}
                             title={currentTrack.title}
+                            artist={currentTrack.artist}
                             coverSrc={coverSrc}
                             ambientColor={ambientColor}
                             isSeekable={isSeekable}
@@ -269,37 +234,11 @@ export const GlobalPlayer = () => {
                             isPlaying={isPlaying}
                             onTogglePlay={togglePlay}
                             autoPlay
+                            onClose={closePlayer}
+                            onExpand={toggleFullscreen}
+                            extraRightControls={pipButton}
                         />
                     </div>
-
-                    {/* 4. Правая часть для обычного режима (громкость и закрытие) */}
-                    {!isFullscreen && (
-                        <div className="flex items-center gap-3 w-1/4 justify-end shrink-0">
-                            {isSupported && (
-                                <button
-                                    onClick={togglePip}
-                                    title="Вынести плеер поверх всех окон"
-                                    aria-label="Вынести плеер поверх всех окон"
-                                    className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h12a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
-                                </button>
-                            )}
-
-                            <button
-                                onClick={closePlayer}
-                                title="Закрыть плеер"
-                                aria-label="Закрыть плеер"
-                                className="w-9 h-9 flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -367,6 +306,7 @@ export const GlobalPlayer = () => {
                             <MemoizedCustomAudioPlayer
                                 src={audioSrc}
                                 title={currentTrack.title}
+                                artist={currentTrack.artist}
                                 coverSrc={coverSrc}
                                 ambientColor={ambientColor}
                                 isSeekable={isSeekable}

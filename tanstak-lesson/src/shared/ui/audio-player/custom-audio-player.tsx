@@ -2,12 +2,14 @@ import { useState, useRef, useEffect, type ChangeEvent, memo, useCallback } from
 import { AudioVisualizer } from "./audio-visualizer";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx";
+import { setGlow, resetGlow, vividRgb } from "@/shared/ui/lib/track-glow.ts";
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
 type Props = {
     src: string;
     title?: string;
+    artist?: string;
     coverSrc?: string | null;
     ambientColor?: string;
     autoPlay?: boolean;
@@ -23,6 +25,9 @@ type Props = {
     onEnded?: () => void;
     onNext?: () => void;
     onPrev?: () => void;
+    onClose?: () => void;
+    onExpand?: () => void;
+    extraRightControls?: React.ReactNode;
 };
 
 const ShuffleIcon = ({ className }: { className?: string }) => (
@@ -108,7 +113,7 @@ const AudioProgressBar = memo(({
     };
 
     return (
-        <div className="flex flex-col w-full gap-2">
+        <div className="flex flex-col w-full gap-1">
             <input
                 ref={inputRef}
                 type="range"
@@ -125,8 +130,8 @@ const AudioProgressBar = memo(({
                     ${!isSeekable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                     disabled:opacity-40 disabled:cursor-not-allowed
                     [&::-webkit-slider-thumb]:appearance-none
-                    [&::-webkit-slider-thumb]:w-3.5
-                    [&::-webkit-slider-thumb]:h-3.5
+                    [&::-webkit-slider-thumb]:w-3
+                    [&::-webkit-slider-thumb]:h-3
                     [&::-webkit-slider-thumb]:rounded-[4px]
                     [&::-webkit-slider-thumb]:bg-white
                     [&::-webkit-slider-thumb]:ring-2
@@ -134,15 +139,15 @@ const AudioProgressBar = memo(({
                     [&::-webkit-slider-thumb]:shadow-md
                     [&::-webkit-slider-thumb]:disabled:cursor-not-allowed
                     [&::-moz-range-thumb]:appearance-none
-                    [&::-moz-range-thumb]:w-3.5
-                    [&::-moz-range-thumb]:h-3.5
+                    [&::-moz-range-thumb]:w-3
+                    [&::-moz-range-thumb]:h-3
                     [&::-moz-range-thumb]:rounded-[4px]
                     [&::-moz-range-thumb]:bg-white
                     [&::-moz-range-thumb]:border-0
                     [&::-moz-range-thumb]:ring-2
                     [&::-moz-range-thumb]:ring-[var(--thumb-color)]`}
             />
-            <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 font-medium px-0.5">
+            <div className="flex justify-between items-center text-[10px] font-mono text-zinc-400 font-medium px-0.5">
                 <span ref={currentTimeRef}>0:00</span>
                 <span>{formatTime(duration)}</span>
             </div>
@@ -155,6 +160,7 @@ AudioProgressBar.displayName = 'AudioProgressBar';
 export const CustomAudioPlayer = ({
                                       src,
                                       title,
+                                      artist,
                                       coverSrc,
                                       ambientColor = '#6366f1',
                                       autoPlay = true,
@@ -167,15 +173,18 @@ export const CustomAudioPlayer = ({
                                       trackId,
                                       onEnded,
                                       onNext,
-                                      onPrev
+                                      onPrev,
+                                      onClose,
+                                      onExpand,
+                                      extraRightControls
                                   }: Props) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
     const [duration, setDuration] = useState(0);
-
     const [trackColor, setTrackColor] = useState(ambientColor);
 
+    // Цвет из обложки
     useEffect(() => {
         if (!coverSrc) {
             queueMicrotask(() => setTrackColor(ambientColor));
@@ -213,10 +222,7 @@ export const CustomAudioPlayer = ({
                 }
 
                 if (count > 0) {
-                    r = Math.floor(r / count);
-                    g = Math.floor(g / count);
-                    b = Math.floor(b / count);
-                    setTrackColor(`rgb(${r}, ${g}, ${b})`);
+                    setTrackColor(`rgb(${Math.floor(r / count)}, ${Math.floor(g / count)}, ${Math.floor(b / count)})`);
                 } else {
                     setTrackColor(ambientColor);
                 }
@@ -224,14 +230,24 @@ export const CustomAudioPlayer = ({
                 setTrackColor(ambientColor);
             }
         };
-        img.onerror = () => {
-            setTrackColor(ambientColor);
-        };
+        img.onerror = () => setTrackColor(ambientColor);
     }, [coverSrc, ambientColor]);
 
+    // Публикуем цвет и состояние для свечения аватара в хедере
+    useEffect(() => {
+        setGlow({ rgb: vividRgb(trackColor).join(', ') });
+    }, [trackColor]);
+
+    useEffect(() => {
+        setGlow({ playing: isPlaying });
+    }, [isPlaying]);
+
+    // Когда плеер закрыли, аватар возвращается к обычному виду
+    useEffect(() => resetGlow, []);
+
     const [volume, setVolume] = useState<number>(() => {
-        const savedVolume = localStorage.getItem('player-volume');
-        return savedVolume !== null ? Number(savedVolume) : 1;
+        const saved = localStorage.getItem('player-volume');
+        return saved !== null ? Number(saved) : 1;
     });
 
     const [isMuted, setIsMuted] = useState<boolean>(() => {
@@ -241,12 +257,12 @@ export const CustomAudioPlayer = ({
     useEffect(() => {
         localStorage.setItem('player-volume', String(volume));
         localStorage.setItem('player-muted', String(isMuted));
-
         if (audioRef.current) {
             audioRef.current.volume = isMuted ? 0 : volume;
         }
     }, [volume, isMuted]);
 
+    // Загрузка трека + автовоспроизведение (с ожиданием клика, если браузер заблокировал)
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio || !src) return;
@@ -327,12 +343,13 @@ export const CustomAudioPlayer = ({
         }
     }, [isPlaying]);
 
+    // Media Session: медиа-клавиши, наушники, экран блокировки
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
 
         navigator.mediaSession.metadata = new MediaMetadata({
             title: title || 'Музыкальный трек',
-            artist: 'My App',
+            artist: artist || 'My App',
             artwork: coverSrc ? [{ src: coverSrc }] : []
         });
 
@@ -349,18 +366,9 @@ export const CustomAudioPlayer = ({
             localStorage.setItem('player-was-playing', 'false');
         });
 
-        if (onNext) {
-            navigator.mediaSession.setActionHandler('nexttrack', onNext);
-        } else {
-            navigator.mediaSession.setActionHandler('nexttrack', null);
-        }
-
-        if (onPrev) {
-            navigator.mediaSession.setActionHandler('previoustrack', onPrev);
-        } else {
-            navigator.mediaSession.setActionHandler('previoustrack', null);
-        }
-    }, [title, coverSrc, onNext, onPrev]);
+        navigator.mediaSession.setActionHandler('nexttrack', onNext ?? null);
+        navigator.mediaSession.setActionHandler('previoustrack', onPrev ?? null);
+    }, [title, artist, coverSrc, onNext, onPrev]);
 
     const handleEndedTrack = () => {
         if (repeatMode === 'one' && audioRef.current) {
@@ -368,12 +376,12 @@ export const CustomAudioPlayer = ({
             audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
             return;
         }
-
         localStorage.removeItem(`player-time-${src}`);
         localStorage.setItem('player-was-playing', 'true');
-        if (onEnded) onEnded();
+        onEnded?.();
     };
 
+    // Горячие клавиши
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
@@ -412,8 +420,9 @@ export const CustomAudioPlayer = ({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isPlaying, onNext, onPrev, togglePlay]);
+    }, [onNext, onPrev, togglePlay]);
 
+    // Громкость: при движении ползунка снимаем mute
     const handleVolumeChange = (e: ChangeEvent<HTMLInputElement>) => {
         const newVolume = Number(e.target.value);
         setVolume(newVolume);
@@ -425,7 +434,7 @@ export const CustomAudioPlayer = ({
     const volumePercent = (isMuted ? 0 : volume) * 100;
 
     return (
-        <div className="flex flex-col w-full gap-1 bg-transparent">
+        <div className="flex items-center justify-between w-full gap-2 md:gap-4 bg-transparent px-2 py-1">
             <audio
                 ref={audioRef}
                 src={src}
@@ -439,38 +448,45 @@ export const CustomAudioPlayer = ({
                 className="hidden"
             />
 
-            {/* 1. Прогресс-бар трека с цветом обложки */}
-            <AudioProgressBar
-                audioRef={audioRef}
-                duration={duration}
-                isSeekable={isSeekable}
-                ambientColor={trackColor}
-                onTimeUpdate={onTimeUpdate}
-                src={src}
-            />
-
-            {/* 2. Нижняя панель управления */}
-            <div className="flex items-center justify-between w-full">
-                <div className="hidden md:flex items-center shrink-0">
-                    <AudioVisualizer
-                        audioRef={audioRef}
-                        isPlaying={isPlaying}
-                        color={trackColor}
+            {/* 1. Левая зона: обложка и текст (текст скрывается на мобильных) */}
+            <div
+                onClick={onExpand}
+                className={`flex items-center gap-2.5 shrink-0 md:min-w-[240px] md:max-w-[300px] ${onExpand ? 'cursor-pointer group' : ''}`}
+                title={onExpand ? "Развернуть во весь экран" : undefined}
+            >
+                {coverSrc ? (
+                    <img
+                        src={coverSrc}
+                        alt={title || "Track"}
+                        style={{ boxShadow: `0 6px 22px -4px ${trackColor}` }}
+                        className={`w-9 h-9 md:w-12 md:h-12 rounded-lg object-cover shrink-0 transition-shadow duration-700 ${onExpand ? 'transition-transform duration-300 group-hover:scale-105' : ''}`}
                     />
+                ) : (
+                    <div className="w-9 h-9 md:w-12 md:h-12 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center text-zinc-500 text-xs md:text-sm">🎵</div>
+                )}
+                <div className="hidden md:flex flex-col min-w-0 flex-1">
+                    <span className={`text-sm font-medium text-zinc-100 truncate ${onExpand ? 'group-hover:text-indigo-400 transition-colors' : ''}`}>
+                        {title || "Без названия"}
+                    </span>
+                    <span className="text-xs text-zinc-400 truncate">
+                        {artist || "Неизвестный исполнитель"}
+                    </span>
                 </div>
+            </div>
 
-                {/* Центр: кнопки */}
-                <div className="flex items-center justify-center gap-3 sm:gap-6 flex-1">
+            {/* 2. Центр: кнопки и прогресс-бар */}
+            <div className="flex flex-col items-center max-w-md w-full gap-1 flex-1 px-1">
+                <div className="flex items-center justify-center gap-1.5 sm:gap-3 md:gap-4">
                     {onToggleShuffle && (
                         <button
                             onClick={onToggleShuffle}
                             type="button"
-                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
-                                isShuffle ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
+                            className={`w-7 h-7 md:w-8 md:h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0 ${
+                                isShuffle ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
                             }`}
                             title="Случайный порядок"
                         >
-                            <ShuffleIcon className="w-4 h-4" />
+                            <ShuffleIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         </button>
                     )}
 
@@ -478,10 +494,10 @@ export const CustomAudioPlayer = ({
                         <button
                             onClick={onPrev}
                             type="button"
-                            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                            className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer shrink-0"
                             title="Предыдущий трек"
                         >
-                            <PrevIcon className="w-4 h-4" />
+                            <PrevIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         </button>
                     )}
 
@@ -490,18 +506,18 @@ export const CustomAudioPlayer = ({
                         type="button"
                         disabled={isBuffering && !duration}
                         style={{ backgroundColor: trackColor }}
-                        className="w-10 h-10 flex items-center justify-center hover:opacity-90 disabled:opacity-70 text-white rounded-full transition-all shrink-0 shadow-md cursor-pointer"
+                        className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:opacity-90 disabled:opacity-70 text-white rounded-full transition-all shadow-md cursor-pointer shrink-0"
                         title={isPlaying ? "Пауза" : "Воспроизвести"}
                     >
                         {isBuffering ? (
-                            <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                             </svg>
                         ) : isPlaying ? (
-                            <PauseIcon className="w-4 h-4" />
+                            <PauseIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         ) : (
-                            <PlayIcon className="w-4 h-4 translate-x-[1px]" />
+                            <PlayIcon className="w-3.5 h-3.5 md:w-4 md:h-4 translate-x-[1px]" />
                         )}
                     </button>
 
@@ -509,10 +525,10 @@ export const CustomAudioPlayer = ({
                         <button
                             onClick={onNext}
                             type="button"
-                            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                            className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer shrink-0"
                             title="Следующий трек"
                         >
-                            <NextIcon className="w-4 h-4" />
+                            <NextIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         </button>
                     )}
 
@@ -520,34 +536,39 @@ export const CustomAudioPlayer = ({
                         <button
                             onClick={onToggleRepeat}
                             type="button"
-                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative ${
-                                repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white'
+                            className={`w-7 h-7 md:w-8 md:h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer relative shrink-0 ${
+                                repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
                             }`}
                             title="Повтор"
                         >
-                            {repeatMode === 'one' ? (
-                                <RepeatOneIcon className="w-4 h-4" />
-                            ) : (
-                                <RepeatIcon className="w-4 h-4" />
-                            )}
-                            {repeatMode === 'all' && (
-                                <span className="absolute bottom-1.5 w-1 h-1 bg-indigo-400 rounded-full" />
-                            )}
+                            {repeatMode === 'one' ? <RepeatOneIcon className="w-3.5 h-3.5 md:w-4 md:h-4" /> : <RepeatIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />}
+                            {repeatMode === 'all' && <span className="absolute bottom-1 w-1 h-1 bg-indigo-400 rounded-full" />}
                         </button>
                     )}
 
-                    {trackId && (
-                        <div className="flex items-center shrink-0">
-                            <TrackLikeButton trackId={trackId} />
-                        </div>
-                    )}
+                    {trackId && <TrackLikeButton trackId={trackId} />}
                 </div>
 
-                {/* Правая часть: Громкость */}
-                <div className="hidden sm:flex items-center gap-2 w-30 shrink-0 justify-end">
+                <AudioProgressBar
+                    audioRef={audioRef}
+                    duration={duration}
+                    isSeekable={isSeekable}
+                    ambientColor={trackColor}
+                    onTimeUpdate={onTimeUpdate}
+                    src={src}
+                />
+            </div>
+
+            {/* 3. Правая зона: визуализатор, громкость, доп. кнопки */}
+            <div className="flex items-center gap-2 md:gap-3 shrink-0 justify-end">
+                <div className="hidden lg:flex">
+                    <AudioVisualizer audioRef={audioRef} isPlaying={isPlaying} color={trackColor} />
+                </div>
+
+                <div className="hidden sm:flex items-center gap-2 w-28 md:w-36">
                     <button
                         onClick={toggleMute}
-                        className="text-zinc-400 hover:text-zinc-100 transition-colors focus:outline-none cursor-pointer"
+                        className="text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
                         title="Звук"
                     >
                         {isMuted || volume === 0 ? (
@@ -573,7 +594,7 @@ export const CustomAudioPlayer = ({
                             background: `linear-gradient(to right, ${trackColor} ${volumePercent}%, rgba(255, 255, 255, 0.15) ${volumePercent}%)`,
                             '--thumb-color': trackColor,
                         } as React.CSSProperties}
-                        className="w-full h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none transition-all
+                        className="w-full h-1 rounded-lg appearance-none cursor-pointer focus:outline-none
                             [&::-webkit-slider-thumb]:appearance-none
                             [&::-webkit-slider-thumb]:w-2.5
                             [&::-webkit-slider-thumb]:h-2.5
@@ -583,18 +604,33 @@ export const CustomAudioPlayer = ({
                             [&::-webkit-slider-thumb]:ring-[var(--thumb-color)]
                             [&::-webkit-slider-thumb]:shadow-md
                             [&::-moz-range-thumb]:appearance-none
-                            [&::-moz-range-thumb]:w-3.5
-                            [&::-moz-range-thumb]:h-3.5
+                            [&::-moz-range-thumb]:w-2.5
+                            [&::-moz-range-thumb]:h-2.5
                             [&::-moz-range-thumb]:rounded-[4px]
                             [&::-moz-range-thumb]:bg-white
                             [&::-moz-range-thumb]:border-0
                             [&::-moz-range-thumb]:ring-2
                             [&::-moz-range-thumb]:ring-[var(--thumb-color)]"
                     />
-                    <span className="text-[11px] font-mono text-zinc-400 w-8 text-right select-none">
+                    <span className="text-[11px] font-mono text-zinc-400 w-8 text-right select-none shrink-0">
                         {Math.round(volumePercent)}%
                     </span>
                 </div>
+
+                {extraRightControls}
+
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        type="button"
+                        className="text-zinc-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                        title="Закрыть"
+                    >
+                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                )}
             </div>
         </div>
     );
