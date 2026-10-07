@@ -26,3 +26,4 @@ routeTree.gen.ts
 .env
 *.env
 **/.env
+cache/

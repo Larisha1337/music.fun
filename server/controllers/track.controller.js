@@ -1,7 +1,7 @@
 import Track from '../models/Track.js'
 import User from '../models/User.js'
 import { uploadToR2, deleteFromR2, getFileStreamFromR2 } from '../service/r2.js'
-import youtubedl from 'yt-dlp-exec'
+import { ensureCached, mimeForFile } from '../service/audio-cache.js'
 import axios from 'axios';
 
 // 1. Глобальная лента (с авторами)
@@ -152,7 +152,12 @@ export const createTrack = async (req, res) => {
     }
 }
 
-// 4. Универсальный стриминг аудио (файлы из R2 и YouTube)
+const isR2Track = (track) => {
+    const r2Domain = process.env.R2_PUBLIC_DOMAIN
+    return Boolean(track.fileUrl && r2Domain && track.fileUrl.startsWith(r2Domain))
+}
+
+// 4. Универсальный стриминг аудио (файлы из R2 и YouTube через дисковый кэш)
 export const streamTrackAudio = async (req, res) => {
     try {
         const track = await Track.findById(req.params.id);
@@ -160,13 +165,8 @@ export const streamTrackAudio = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' });
         }
 
-        const r2Domain = process.env.R2_PUBLIC_DOMAIN;
-        const isR2File = Boolean(
-            track.fileUrl && r2Domain && track.fileUrl.startsWith(r2Domain)
-        );
-
         // ВАРИАНТ А: загруженный файл в R2
-        if (isR2File) {
+        if (isR2Track(track)) {
             try {
                 const r2Response = await getFileStreamFromR2(track.fileUrl, req.headers.range);
 
@@ -196,54 +196,43 @@ export const streamTrackAudio = async (req, res) => {
             }
         }
 
-        // ВАРИАНТ Б: стриминг с YouTube через yt-dlp (проксируем через бэкенд)
-        const searchQuery = track.artist
-            ? `${track.artist} ${track.title}`
-            : track.title;
+        // ВАРИАНТ Б: YouTube. Берём из кэша; если там нет, скачиваем один раз.
+        // sendFile сам поддерживает Range, поэтому перемотка работает.
+        const { file } = await ensureCached(track);
 
-        console.log(`[Stream] YouTube поток для: "${searchQuery}"`);
-
-        res.setHeader('Content-Type', 'audio/webm');
-        res.setHeader('Accept-Ranges', 'none');
-        res.setHeader('Cache-Control', 'no-store');
-
-        const subprocess = youtubedl.exec(
-            `ytsearch1:${searchQuery} audio`,
-            {
-                f: 'bestaudio',
-                o: '-',
-                q: true,
-                noPlaylist: true,
-                noCheckCertificates: true,
-                socketTimeout: 10
-            },
-            { stdio: ['ignore', 'pipe', 'pipe'] }
-        );
-
-        subprocess.stderr.on('data', (data) => {
-            console.error(`[yt-dlp stderr]: ${data.toString()}`);
-        });
-
-        subprocess.stdout.pipe(res);
-
-        subprocess.on('error', (err) => {
-            console.error('[Stream] Ошибка yt-dlp:', err);
-            if (!res.headersSent) {
-                res.status(500).json({ message: 'Ошибка воспроизведения потока' });
-            } else {
-                res.end();
+        res.setHeader('Content-Type', mimeForFile(file));
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(file, (err) => {
+            // обрыв соединения клиентом (перемотка, смена трека) не ошибка
+            if (err && !res.headersSent && err.code !== 'ECONNABORTED') {
+                res.status(500).json({ message: 'Ошибка отправки файла' });
             }
         });
-
-        res.on('close', () => {
-            subprocess.kill();
-        });
-
     } catch (error) {
         console.error('[Stream Error]:', error);
         if (!res.headersSent) {
-            res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+            res.status(502).json({ message: 'Не удалось получить аудио' });
         }
+    }
+};
+
+// Подгрузка в кэш заранее (вызывается фронтом при наведении на кнопку Play)
+export const prefetchTrackAudio = async (req, res) => {
+    try {
+        const track = await Track.findById(req.params.id);
+        if (!track) {
+            return res.status(404).json({ message: 'Трек не найден' });
+        }
+
+        if (isR2Track(track)) {
+            return res.status(204).end(); // свои файлы и так грузятся из R2
+        }
+
+        // Не ждём окончания: скачивание идёт в фоне
+        ensureCached(track).catch((e) => console.error('[Prefetch Error]:', e.message));
+        res.status(202).json({ status: 'queued' });
+    } catch (error) {
+        res.status(404).json({ message: 'Трек не найден' });
     }
 };
 
@@ -366,12 +355,9 @@ export const deleteTrack = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        if (!track.isStreamed) {
-            if (track.fileUrl) await deleteFromR2(track.fileUrl)
-            if (track.coverUrl && !track.coverUrl.startsWith('http')) {
-                await deleteFromR2(track.coverUrl)
-            }
-        }
+        // deleteFromR2 сам игнорирует ссылки не из нашего хранилища, поэтому вызывать безопасно
+        if (track.fileUrl) await deleteFromR2(track.fileUrl)
+        if (track.coverUrl) await deleteFromR2(track.coverUrl)
 
         await track.deleteOne()
         res.json({ message: 'Удалено' })

@@ -382,8 +382,29 @@ export const CustomAudioPlayer = ({
     };
 
     // Горячие клавиши
+    // Название трека во вкладке браузера: «▶ Название — Исполнитель»
+    const originalTitleRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (originalTitleRef.current === null) originalTitleRef.current = document.title;
+        if (title) {
+            document.title = `${isPlaying ? '▶' : '❚❚'} ${title}${artist ? ` — ${artist}` : ''}`;
+        }
+    }, [title, artist, isPlaying]);
+
+    // Когда плеер закрыли, возвращаем прежний заголовок вкладки
+    useEffect(() => {
+        return () => {
+            if (originalTitleRef.current !== null) document.title = originalTitleRef.current;
+        };
+    }, []);
+
+    // Горячие клавиши
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Не перехватываем системные сочетания (Ctrl+F, Cmd+M и т.д.)
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
             const target = e.target as HTMLElement;
             if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
                 return;
@@ -395,17 +416,25 @@ export const CustomAudioPlayer = ({
                     togglePlay();
                     break;
                 case 'ArrowRight':
-                    if (onNext) {
-                        e.preventDefault();
-                        onNext();
+                case 'ArrowLeft': {
+                    const forward = e.code === 'ArrowRight';
+                    if (e.shiftKey) {
+                        // Shift + стрелка: перемотка на 5 секунд
+                        const audio = audioRef.current;
+                        if (audio && isSeekable) {
+                            e.preventDefault();
+                            const next = audio.currentTime + (forward ? 5 : -5);
+                            audio.currentTime = Math.min(Math.max(0, next), audio.duration || next);
+                        }
+                    } else {
+                        const handler = forward ? onNext : onPrev;
+                        if (handler) {
+                            e.preventDefault();
+                            handler();
+                        }
                     }
                     break;
-                case 'ArrowLeft':
-                    if (onPrev) {
-                        e.preventDefault();
-                        onPrev();
-                    }
-                    break;
+                }
                 case 'ArrowUp':
                     e.preventDefault();
                     setVolume((prev) => Number(Math.min(prev + 0.1, 1).toFixed(2)));
@@ -415,12 +444,21 @@ export const CustomAudioPlayer = ({
                     e.preventDefault();
                     setVolume((prev) => Number(Math.max(prev - 0.1, 0).toFixed(2)));
                     break;
+                case 'KeyM':
+                    setIsMuted((m) => !m);
+                    break;
+                case 'KeyF':
+                    if (onExpand) {
+                        e.preventDefault();
+                        onExpand();
+                    }
+                    break;
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onNext, onPrev, togglePlay]);
+    }, [onNext, onPrev, onExpand, isSeekable, togglePlay]);
 
     // Громкость: при движении ползунка снимаем mute
     const handleVolumeChange = (e: ChangeEvent<HTMLInputElement>) => {

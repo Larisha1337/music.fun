@@ -1,7 +1,6 @@
 import express from 'express'
 import authMiddleware from '../middleware/auth.js'
 import {uploadTrack, uploadTrackCover, uploadTrackWithCover} from '../middleware/upload.js'
-import { streamTrackAudio } from '../controllers/track.controller.js';
 
 import {
     getAllTracks,
@@ -11,7 +10,9 @@ import {
     uploadCover,
     deleteCover,
     updateTrackFile,
-    deleteTrack
+    deleteTrack,
+    streamTrackAudio,
+    prefetchTrackAudio
 } from '../controllers/track.controller.js'
 
 const router = express.Router()
@@ -40,7 +41,10 @@ router.put('/:id/file', authMiddleware, uploadTrack.single('file'), updateTrackF
 // 8. Удалить трек целиком
 router.delete('/:id', authMiddleware, deleteTrack)
 
-// Роут для стриминга по ID трека
-router.get('/:id/stream', streamTrackAudio);
+// Стриминг по ID трека (R2 или YouTube-кэш)
+router.get('/:id/stream', streamTrackAudio)
+
+// Подгрузка в кэш заранее
+router.post('/:id/prefetch', prefetchTrackAudio)
 
 export default router

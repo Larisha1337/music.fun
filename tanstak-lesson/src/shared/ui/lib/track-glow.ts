@@ -3,19 +3,23 @@ import { useSyncExternalStore } from 'react'
 type GlowState = {
     rgb: string | null   // например "129, 140, 248"
     playing: boolean
+    /** true, когда визуализатор читает звук и свечение может биться в такт */
+    reactive: boolean
 }
 
-let state: GlowState = { rgb: null, playing: false }
+let state: GlowState = { rgb: null, playing: false, reactive: false }
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((l) => l())
 
 export const setGlow = (patch: Partial<GlowState>) => {
-    state = { ...state, ...patch }
+    const next = { ...state, ...patch }
+    if (next.rgb === state.rgb && next.playing === state.playing && next.reactive === state.reactive) return
+    state = next
     emit()
 }
 
 export const resetGlow = () => {
-    state = { rgb: null, playing: false }
+    state = { rgb: null, playing: false, reactive: false }
     emit()
 }
 
@@ -27,6 +31,23 @@ export const useGlow = (): GlowState =>
         },
         () => state
     )
+
+/* ---------- Пульс звука (60 раз в секунду, мимо React) ---------- */
+
+type BeatListener = (level: number) => void
+const beatListeners = new Set<BeatListener>()
+
+/** level от 0 до 1: сила удара в басах прямо сейчас */
+export const publishBeat = (level: number) => {
+    beatListeners.forEach((l) => l(level))
+}
+
+export const subscribeBeat = (listener: BeatListener) => {
+    beatListeners.add(listener)
+    return () => {
+        beatListeners.delete(listener)
+    }
+}
 
 /* ---------- Цвет: делаем ярче, чтобы даже тёмные обложки светились ---------- */
 

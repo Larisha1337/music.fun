@@ -6,6 +6,7 @@ import userRoutes from './routes/user.js'
 import trackRoutes from './routes/track.js'
 import authRoutes from './routes/auth.js'
 import playlistRoutes from './routes/playlist.js'
+import { initAudioCache } from './service/audio-cache.js'
 
 
 const app = express()
@@ -22,6 +23,8 @@ app.use('/uploads', express.static('uploads')) // отдаём загружен�
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB подключена'))
     .catch((err) => console.error('Ошибка подключения к MongoDB:', err))
+
+initAudioCache().catch((err) => console.error('[AudioCache] Ошибка инициализации:', err))
 
 app.use('/api/user', userRoutes)
 app.use('/api/tracks', trackRoutes)

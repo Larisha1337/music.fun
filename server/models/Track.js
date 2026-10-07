@@ -9,7 +9,8 @@ const trackSchema = new mongoose.Schema({
     fileSize: { type: Number },
     isSeed: { type: Boolean, default: false },
     isStreamed: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
+    youtubeId: { type: String, default: null },
+    createdAt: { type: Date, default: Date.now, index: true },
     bpm: { type: Number, default: null },
     musicalKey: { type: String, default: null },
 })

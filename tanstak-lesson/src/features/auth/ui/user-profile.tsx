@@ -4,7 +4,7 @@ import { useAvatarQuery } from "../../avatar/api/use-avatar-query.ts";
 import { useUploadAvatarMutation } from "../../avatar/api/use-upload-avatar-mutation.ts";
 import { useUpdateProfileMutation } from "@/features/auth/api/use-update-profile-mutation.ts";
 import { LogoutButton } from "@/features/auth/ui/button/logout-button.tsx";
-import { useGlow, glowShadow } from "@/shared/ui/lib/track-glow.ts";
+import { useGlow, glowShadow, subscribeBeat } from "@/shared/ui/lib/track-glow.ts";
 
 type Props = {
     user: {
@@ -44,6 +44,7 @@ export const UserProfile = ({ user }: Props) => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const ringRef = useRef<HTMLSpanElement>(null);
+    const haloRef = useRef<HTMLSpanElement>(null);
 
     // Цвет и состояние играющего трека (приходят из плеера)
     const glow = useGlow();
@@ -60,17 +61,39 @@ export const UserProfile = ({ user }: Props) => {
         return () => shine.cancel();
     }, []);
 
-    // Пульсация свечения, пока играет музыка
+    // Ореол бьётся в такт музыке (60 раз в секунду, напрямую в DOM, без перерисовок React)
+    useEffect(() => {
+        const halo = haloRef.current;
+        if (!halo) return;
+
+        if (!glow.rgb || !glow.playing || !glow.reactive) {
+            halo.style.boxShadow = 'none';
+            return;
+        }
+
+        const rgb = glow.rgb;
+        const off = subscribeBeat((level) => {
+            halo.style.boxShadow =
+                `0 0 ${12 + level * 30}px ${2 + level * 10}px rgba(${rgb}, ${0.3 + level * 0.55})`;
+        });
+
+        return () => {
+            off();
+            halo.style.boxShadow = 'none';
+        };
+    }, [glow.rgb, glow.playing, glow.reactive]);
+
+    // Запасной вариант: если звук прочитать нельзя, свечение просто «дышит»
     useEffect(() => {
         const el = ringRef.current;
-        if (!el || !glow.rgb || !glow.playing || typeof el.animate !== 'function') return;
+        if (!el || !glow.rgb || !glow.playing || glow.reactive || typeof el.animate !== 'function') return;
 
         const pulse = el.animate(
             [{ boxShadow: glowShadow(glow.rgb, 'low') }, { boxShadow: glowShadow(glow.rgb, 'high') }],
             { duration: 1200, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' }
         );
         return () => pulse.cancel();
-    }, [glow.rgb, glow.playing]);
+    }, [glow.rgb, glow.playing, glow.reactive]);
 
     const ringStyle: CSSProperties = {
         backgroundImage: glow.rgb
@@ -132,12 +155,12 @@ export const UserProfile = ({ user }: Props) => {
                 className="hidden"
             />
 
-            {/* Стеклянная плашка профиля: всегда с именем, на узких экранах просто сжимается */}
+            {/* Стеклянная плашка профиля */}
             <div
                 style={pillStyle}
                 className="flex items-center gap-2 sm:gap-3 min-w-0 pl-1 sm:pl-1.5 pr-2 sm:pr-3.5 py-1 sm:py-1.5 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-md transition-all duration-700 hover:bg-white/[0.06]"
             >
-                {/* Аватар: кольцо и свечение берут цвет играющего трека */}
+                {/* Аватар: кольцо и ореол берут цвет трека, ореол бьётся в такт */}
                 <button
                     type="button"
                     onClick={handleAvatarClick}
@@ -146,9 +169,14 @@ export const UserProfile = ({ user }: Props) => {
                     className="relative group shrink-0 rounded-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                 >
                     <span
+                        ref={haloRef}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 rounded-full"
+                    />
+                    <span
                         ref={ringRef}
                         style={ringStyle}
-                        className="block p-[2px] rounded-full transition-transform duration-300 group-hover:scale-105 group-active:scale-95"
+                        className="relative block p-[2px] rounded-full transition-transform duration-300 group-hover:scale-105 group-active:scale-95"
                     >
                         <span className="relative block w-7 h-7 sm:w-9 sm:h-9 rounded-full overflow-hidden bg-zinc-950">
                             {avatarUrl ? (
@@ -181,7 +209,7 @@ export const UserProfile = ({ user }: Props) => {
                     <span className="absolute bottom-0 right-0 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-400 ring-2 ring-zinc-950 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
                 </button>
 
-                {/* Имя или поле ввода (показывается на любом экране) */}
+                {/* Имя или поле ввода */}
                 {isEditingName ? (
                     <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                         <input

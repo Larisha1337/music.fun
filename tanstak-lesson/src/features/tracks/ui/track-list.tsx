@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { TrackActionsModal } from './track-actions-modal'
 import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal'
@@ -63,6 +63,31 @@ export const TrackList = ({
 
     const { currentTrack, playTrack, closePlayer } = useAudioPlayer()
     const selectedTrack = tracks.find((t) => t._id === selectedTrackId)
+
+    // Подгружаем аудио в кэш, пока пользователь тянется к кнопке Play
+    const prefetchedRef = useRef<Set<string>>(new Set())
+    const hoverTimerRef = useRef<number | null>(null)
+
+    const prefetchTrack = (track: Track) => {
+        // у своих загруженных треков есть fileUrl, они и так грузятся из R2
+        if (track.fileUrl?.trim()) return
+        if (prefetchedRef.current.has(track._id)) return
+
+        prefetchedRef.current.add(track._id)
+        fetch(`${MY_API_BASE}/api/tracks/${track._id}/prefetch`, { method: 'POST' }).catch(() => {
+            prefetchedRef.current.delete(track._id)
+        })
+    }
+
+    // Небольшая задержка, чтобы пролёт мышью по списку не запускал десятки загрузок
+    const onPlayHoverStart = (track: Track) => {
+        if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current)
+        hoverTimerRef.current = window.setTimeout(() => prefetchTrack(track), 250)
+    }
+
+    const onPlayHoverEnd = () => {
+        if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current)
+    }
 
     const togglePlay = (track: Track) => {
         if (currentTrack?._id === track._id) {
@@ -132,6 +157,10 @@ export const TrackList = ({
                             <button
                                 type="button"
                                 onClick={() => togglePlay(track)}
+                                onPointerEnter={() => onPlayHoverStart(track)}
+                                onPointerLeave={onPlayHoverEnd}
+                                onTouchStart={() => prefetchTrack(track)}
+                                onFocus={() => prefetchTrack(track)}
                                 aria-label={isPlaying ? `Остановить: ${displayTitle}` : `Воспроизвести: ${displayTitle}`}
                                 className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 shadow-lg active:scale-95 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                                     isPlaying
