@@ -4,31 +4,68 @@ import { uploadToR2, deleteFromR2, getFileStreamFromR2 } from '../service/r2.js'
 import { ensureCached, mimeForFile } from '../service/audio-cache.js'
 import axios from 'axios';
 
-// 1. Глобальная лента (с авторами)
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// 1. Глобальная лента (с авторами).
+// Без параметров отдаёт всё, как раньше. Параметры: ?page=1&limit=30&q=поиск
 export const getAllTracks = async (req, res) => {
     try {
-        const tracks = await Track.find().sort({ createdAt: -1 }).lean()
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 100)
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1)
+        const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : ''
+
+        const filter = {}
+        if (q) {
+            // Поиск по названию, исполнителю и имени/почте автора загрузки
+            const rx = new RegExp(escapeRegex(q), 'i')
+            const authors = await User.find({ $or: [{ name: rx }, { email: rx }] })
+                .select('_id')
+                .limit(50)
+                .lean()
+
+            filter.$or = [
+                { title: rx },
+                { artist: rx },
+                { userId: { $in: authors.map((a) => a._id.toString()) } },
+            ]
+        }
+
+        let query = Track.find(filter).sort({ createdAt: -1, _id: -1 })
+        if (limit) query = query.skip((page - 1) * limit).limit(limit)
+
+        const [tracks, total] = await Promise.all([
+            query.lean(),
+            limit ? Track.countDocuments(filter) : Promise.resolve(0),
+        ])
 
         const userIds = [...new Set(
             tracks
-                .filter(t => t.userId && t.userId !== 'system')
-                .map(t => t.userId.toString())
+                .filter((t) => t.userId && t.userId !== 'system')
+                .map((t) => t.userId.toString())
         )]
 
         const users = await User.find({ _id: { $in: userIds } }).select('email name').lean()
 
         const authorById = Object.fromEntries(
-            users.map(u => [u._id.toString(), u.name || u.email])
+            users.map((u) => [u._id.toString(), u.name || u.email])
         )
 
-        const tracksWithAuthor = tracks.map(t => ({
+        const tracksWithAuthor = tracks.map((t) => ({
             ...t,
             authorEmail: t.userId && authorById[t.userId.toString()]
                 ? authorById[t.userId.toString()]
                 : 'Deezer / Chart'
         }))
 
-        res.json({ tracks: tracksWithAuthor })
+        if (!limit) return res.json({ tracks: tracksWithAuthor })
+
+        res.json({
+            tracks: tracksWithAuthor,
+            page,
+            limit,
+            total,
+            hasMore: page * limit < total,
+        })
     } catch (error) {
         console.error('[Error GET /api/tracks]:', error)
         res.status(500).json({ message: 'Ошибка получения треков' })

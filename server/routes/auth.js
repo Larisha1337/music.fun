@@ -1,15 +1,62 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import rateLimit from 'express-rate-limit'
 import User from '../models/User.js'
+import authMiddleware from '../middleware/auth.js'
 
 const router = express.Router()
 
-router.post('/register', async (req, res) => {
-    try {
-        const { email, password } = req.body
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const MIN_PASSWORD = 8
+const MAX_PASSWORD_BYTES = 72 // bcrypt игнорирует всё, что длиннее 72 байт
 
-        const existing = await User.findOne({ email })
+// Хеш-пустышка: сравниваем с ним, когда пользователя нет, чтобы по времени ответа
+// нельзя было узнать, зарегистрирован ли email
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10)
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    skipSuccessfulRequests: true, // считаем только неудачные попытки
+    message: { message: 'Слишком много попыток входа. Попробуйте через 15 минут' },
+})
+
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { message: 'Слишком много регистраций с этого адреса. Попробуйте позже' },
+})
+
+const readCredentials = (body) => ({
+    rawEmail: typeof body?.email === 'string' ? body.email.trim() : '',
+    password: typeof body?.password === 'string' ? body.password : '',
+})
+
+const signToken = (userId) =>
+    jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' })
+
+router.post('/register', registerLimiter, async (req, res) => {
+    try {
+        const { rawEmail, password } = readCredentials(req.body)
+
+        if (!EMAIL_RE.test(rawEmail) || rawEmail.length > 254) {
+            return res.status(400).json({ message: 'Введите корректный email' })
+        }
+        if (password.length < MIN_PASSWORD) {
+            return res.status(400).json({ message: `Пароль должен быть не короче ${MIN_PASSWORD} символов` })
+        }
+        if (Buffer.byteLength(password) > MAX_PASSWORD_BYTES) {
+            return res.status(400).json({ message: 'Пароль слишком длинный' })
+        }
+
+        // Новые email храним в нижнем регистре, но ищем и по старому написанию
+        const email = rawEmail.toLowerCase()
+        const existing = await User.findOne({ email: { $in: [rawEmail, email] } })
         if (existing) {
             return res.status(400).json({ message: 'Такой email уже занят' })
         }
@@ -17,51 +64,49 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10)
         const user = await User.create({ email, password: hashedPassword })
 
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' })
-
-        res.status(201).json({ token, userId: user._id })
+        res.status(201).json({ token: signToken(user._id), userId: user._id })
     } catch (error) {
+        // Два одновременных запроса с одним email: сработал unique-индекс
+        if (error?.code === 11000) {
+            return res.status(400).json({ message: 'Такой email уже занят' })
+        }
         console.error(error)
         res.status(500).json({ message: 'Ошибка регистрации' })
     }
 })
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
     try {
-        const { email, password } = req.body
+        const { rawEmail, password } = readCredentials(req.body)
 
-        const user = await User.findOne({ email })
-        if (!user) {
+        if (!rawEmail || !password || rawEmail.length > 254 || password.length > 200) {
             return res.status(400).json({ message: 'Неверный email или пароль' })
         }
 
-        const isMatch = await bcrypt.compare(password, user.password)
-        if (!isMatch) {
+        // Здесь минимальную длину пароля не проверяем: у старых пользователей он может быть короче
+        const user = await User.findOne({ email: { $in: [rawEmail, rawEmail.toLowerCase()] } })
+        const isMatch = await bcrypt.compare(password, user ? user.password : DUMMY_HASH)
+
+        if (!user || !isMatch) {
             return res.status(400).json({ message: 'Неверный email или пароль' })
         }
 
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' })
-
-        res.json({ token, userId: user._id })
+        res.json({ token: signToken(user._id), userId: user._id })
     } catch (error) {
         console.error(error)
         res.status(500).json({ message: 'Ошибка входа' })
     }
 })
 
-router.get('/me', async (req, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
     try {
-        const authHeader = req.headers.authorization
-        if (!authHeader) return res.status(401).json({ message: 'Нет токена' })
-
-        const token = authHeader.split(' ')[1]
-        const decoded = jwt.verify(token, process.env.JWT_SECRET)
-        const user = await User.findById(decoded.userId).select('-password')
-
+        const user = await User.findById(req.userId).select('-password')
         if (!user) return res.status(404).json({ message: 'Пользователь не найден' })
+
         res.json({ user })
     } catch (error) {
-        res.status(401).json({ message: 'Невалидный токен' })
+        console.error(error)
+        res.status(500).json({ message: 'Ошибка получения профиля' })
     }
 })
 

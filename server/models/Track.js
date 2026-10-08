@@ -15,4 +15,7 @@ const trackSchema = new mongoose.Schema({
     musicalKey: { type: String, default: null },
 })
 
+trackSchema.index({ userId: 1, createdAt: -1 })
+trackSchema.index({ title: 1, artist: 1 })
+
 export default mongoose.model('Track', trackSchema)

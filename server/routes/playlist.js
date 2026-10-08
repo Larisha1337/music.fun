@@ -1,38 +1,34 @@
 import express from 'express'
-import multer from 'multer'
-import path from 'path'
-import fs from 'fs'
+import mongoose from 'mongoose'
 import authMiddleware from '../middleware/auth.js'
+import { uploadPlaylistCover } from '../middleware/upload.js'
+import { uploadToR2, deleteFromR2 } from '../service/r2.js'
 import Playlist from '../models/Playlist.js'
+import Track from '../models/Track.js'
 
 const router = express.Router()
 
-// Создаем папку uploads, если её ещё нет
-if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads')
-}
-
-// Конфигурация Multer для загрузки обложек
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/')
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-        cb(null, 'cover-' + uniqueSuffix + path.extname(file.originalname))
-    }
-})
-
-// 👈 Вот эта переменная upload, которой не хватало
-const upload = multer({ storage })
+const LIKED_NAME = 'Мне нравится'
+const isId = (v) => mongoose.isValidObjectId(v)
+// Принимаем только ссылки http(s) и старые локальные пути; чужие схемы (javascript: и т.п.) отбрасываем
+const isSafeCoverUrl = (v) => typeof v === 'string' && /^(https?:\/\/|\/uploads\/)/.test(v)
 
 // Применяем авторизацию ко всем роутам ниже
 router.use(authMiddleware)
 
+// Битый id в адресе: 404 вместо ошибки 500
+router.param('id', (req, res, next, id) => {
+    if (!isId(id)) return res.status(404).json({ message: 'Плейлист не найден' })
+    next()
+})
+
 // 1. Получить МОИ плейлисты (для сайдбара)
 router.get('/', async (req, res) => {
     try {
-        const playlists = await Playlist.find({ ownerId: req.userId }, 'name coverUrl tracks').sort({ createdAt: -1 })
+        const playlists = await Playlist.find(
+            { ownerId: req.userId },
+            'name coverUrl tracks isSystem'
+        ).sort({ createdAt: -1 })
         res.status(200).json(playlists)
     } catch (error) {
         console.error(error)
@@ -54,24 +50,29 @@ router.get('/:id', async (req, res) => {
     }
 })
 
-// 3. Создать плейлист (с поддержкой файла обложки)
-router.post('/', upload.single('cover'), async (req, res) => {
+// 3. Создать плейлист (обложка уходит в R2)
+router.post('/', uploadPlaylistCover.single('cover'), async (req, res) => {
     try {
         const body = req.body || {}
-        const { name, description } = body
+        const name = typeof body.name === 'string' ? body.name.trim() : ''
+        const description = typeof body.description === 'string' ? body.description.trim() : ''
 
-        if (!name || !name.trim()) {
-            return res.status(400).json({ message: 'Название обязательно' })
+        if (!name) return res.status(400).json({ message: 'Название обязательно' })
+        if (name.length > 100) return res.status(400).json({ message: 'Название слишком длинное' })
+        if (name === LIKED_NAME) {
+            return res.status(400).json({ message: 'Это название зарезервировано системой' })
         }
 
-        let coverUrl = body.coverUrl || null
+        let coverUrl = null
         if (req.file) {
-            coverUrl = `/uploads/${req.file.filename}`
+            coverUrl = await uploadToR2(req.file, 'playlist-covers')
+        } else if (isSafeCoverUrl(body.coverUrl)) {
+            coverUrl = body.coverUrl
         }
 
         const newPlaylist = await Playlist.create({
-            name: name.trim(),
-            description: description?.trim(),
+            name,
+            description,
             coverUrl,
             ownerId: req.userId
         })
@@ -83,25 +84,51 @@ router.post('/', upload.single('cover'), async (req, res) => {
     }
 })
 
-// 4. Обновить плейлист (название, описание, обложка и теперь порядок треков!)
-router.put('/:id', upload.single('cover'), async (req, res) => {
+// 4. Обновить плейлист (название, описание, обложка, порядок треков)
+router.put('/:id', uploadPlaylistCover.single('cover'), async (req, res) => {
     try {
         const body = req.body || {}
-        const { name, description, tracks } = body // 👈 принимаем tracks
+
+        const existing = await Playlist.findOne({ _id: req.params.id, ownerId: req.userId })
+        if (!existing) return res.status(404).json({ message: 'Плейлист не найден' })
 
         const updateData = {}
-        if (name) updateData.name = name
-        if (description !== undefined) updateData.description = description
 
-        // Если передан новый массив треков (приходит из FormData как JSON-строка или массив)
-        if (tracks) {
-            updateData.tracks = typeof tracks === 'string' ? JSON.parse(tracks) : tracks
+        // Системный плейлист «Мне нравится» переименовывать нельзя
+        if (typeof body.name === 'string' && body.name.trim() && !existing.isSystem) {
+            const name = body.name.trim()
+            if (name.length > 100) return res.status(400).json({ message: 'Название слишком длинное' })
+            if (name === LIKED_NAME) {
+                return res.status(400).json({ message: 'Это название зарезервировано системой' })
+            }
+            updateData.name = name
         }
 
-        // Если пришел файл обложки через FormData
+        if (typeof body.description === 'string') updateData.description = body.description.trim()
+
+        // Новый порядок треков (из FormData приходит JSON-строка или массив)
+        if (body.tracks !== undefined) {
+            let tracks
+            try {
+                tracks = typeof body.tracks === 'string' ? JSON.parse(body.tracks) : body.tracks
+            } catch {
+                return res.status(400).json({ message: 'Некорректный список треков' })
+            }
+
+            if (!Array.isArray(tracks)) {
+                return res.status(400).json({ message: 'Некорректный список треков' })
+            }
+
+            const ids = tracks.map((t) => (t && typeof t === 'object' ? t._id : t))
+            if (!ids.every(isId)) {
+                return res.status(400).json({ message: 'Некорректный id трека в списке' })
+            }
+            updateData.tracks = ids
+        }
+
         if (req.file) {
-            updateData.coverUrl = `/uploads/${req.file.filename}`
-        } else if (body.coverUrl) {
+            updateData.coverUrl = await uploadToR2(req.file, 'playlist-covers')
+        } else if (isSafeCoverUrl(body.coverUrl)) {
             updateData.coverUrl = body.coverUrl
         }
 
@@ -112,6 +139,12 @@ router.put('/:id', upload.single('cover'), async (req, res) => {
         ).populate('tracks')
 
         if (!updated) return res.status(404).json({ message: 'Плейлист не найден' })
+
+        // Старая обложка больше не нужна (deleteFromR2 сам пропускает ссылки не из нашего хранилища)
+        if (existing.coverUrl && existing.coverUrl !== updated.coverUrl) {
+            await deleteFromR2(existing.coverUrl)
+        }
+
         res.status(200).json(updated)
     } catch (error) {
         console.error('Ошибка обновления:', error)
@@ -122,8 +155,16 @@ router.put('/:id', upload.single('cover'), async (req, res) => {
 // 5. Удалить плейлист
 router.delete('/:id', async (req, res) => {
     try {
-        const deleted = await Playlist.findOneAndDelete({ _id: req.params.id, ownerId: req.userId })
-        if (!deleted) return res.status(404).json({ message: 'Плейлист не найден' })
+        const deleted = await Playlist.findOneAndDelete({
+            _id: req.params.id,
+            ownerId: req.userId,
+            isSystem: { $ne: true } // «Мне нравится» удалить нельзя
+        })
+        if (!deleted) {
+            return res.status(404).json({ message: 'Плейлист не найден или является системным' })
+        }
+
+        if (deleted.coverUrl) await deleteFromR2(deleted.coverUrl)
 
         res.status(200).json({ message: 'Удалено', id: req.params.id })
     } catch (error) {
@@ -135,8 +176,12 @@ router.delete('/:id', async (req, res) => {
 // 6. Добавить трек в плейлист
 router.post('/:id/tracks', async (req, res) => {
     try {
-        const { trackId } = req.body
-        if (!trackId) return res.status(400).json({ message: 'Нет ID трека' })
+        const { trackId } = req.body || {}
+        if (!isId(trackId)) return res.status(400).json({ message: 'Нет ID трека' })
+
+        if (!(await Track.exists({ _id: trackId }))) {
+            return res.status(404).json({ message: 'Трек не найден' })
+        }
 
         const updated = await Playlist.findOneAndUpdate(
             { _id: req.params.id, ownerId: req.userId },
@@ -155,6 +200,8 @@ router.post('/:id/tracks', async (req, res) => {
 // 7. Удалить трек из плейлиста
 router.delete('/:id/tracks/:trackId', async (req, res) => {
     try {
+        if (!isId(req.params.trackId)) return res.status(400).json({ message: 'Некорректный ID трека' })
+
         const updated = await Playlist.findOneAndUpdate(
             { _id: req.params.id, ownerId: req.userId },
             { $pull: { tracks: req.params.trackId } },
@@ -169,35 +216,36 @@ router.delete('/:id/tracks/:trackId', async (req, res) => {
     }
 })
 
-// 8. Лайк / Дизлайк трека (автоматически управляет системным плейлистом "Мне нравится")
+// 8. Лайк / Дизлайк трека (управляет системным плейлистом «Мне нравится»)
 router.post('/liked/toggle', async (req, res) => {
     try {
-        const { trackId } = req.body
-        if (!trackId) return res.status(400).json({ message: 'Нет ID трека' })
+        const { trackId } = req.body || {}
+        if (!isId(trackId)) return res.status(400).json({ message: 'Нет ID трека' })
 
-        // Ищем или создаем системный плейлист "Мне нравится" для текущего юзера
-        let likedPlaylist = await Playlist.findOne({ ownerId: req.userId, name: 'Мне нравится' })
-
-        if (!likedPlaylist) {
-            likedPlaylist = await Playlist.create({
-                name: 'Мне нравится',
-                description: 'Ваши любимые треки',
-                ownerId: req.userId,
-                tracks: [],
-                isSystem: true // 👈 помечаем как системный
-            })
+        if (!(await Track.exists({ _id: trackId }))) {
+            return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        // Проверяем, есть ли трек уже в лайках
-        const isLiked = likedPlaylist.tracks.includes(trackId)
+        // Ищем системный плейлист (старые записи без флага находим по названию)
+        let liked = await Playlist.findOne({
+            ownerId: req.userId,
+            $or: [{ isSystem: true }, { name: LIKED_NAME }]
+        })
 
-        const updateOperation = isLiked
-            ? { $pull: { tracks: trackId } }   // Удаляем, если уже был лайк
-            : { $addToSet: { tracks: trackId } } // Добавляем, если не было
+        // Создаём атомарно: два быстрых клика не породят два плейлиста
+        if (!liked) {
+            liked = await Playlist.findOneAndUpdate(
+                { ownerId: req.userId, isSystem: true },
+                { $setOnInsert: { name: LIKED_NAME, description: 'Ваши любимые треки', tracks: [] } },
+                { upsert: true, new: true }
+            )
+        }
+
+        const isLiked = liked.tracks.some((id) => id.toString() === trackId)
 
         const updated = await Playlist.findOneAndUpdate(
-            { _id: likedPlaylist._id, ownerId: req.userId },
-            updateOperation,
+            { _id: liked._id, ownerId: req.userId },
+            isLiked ? { $pull: { tracks: trackId } } : { $addToSet: { tracks: trackId } },
             { new: true }
         ).populate('tracks')
 
