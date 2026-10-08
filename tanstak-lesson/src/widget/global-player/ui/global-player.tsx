@@ -7,6 +7,8 @@ import { LyricsView } from "@/shared/ui/lib/parce/lyrics-view";
 import { parseLrc } from "@/shared/ui/lib/parce/lrc-parser";
 import { fetchLyrics } from "@/shared/api/lyrics-api";
 import { subscribeBeat } from "@/shared/ui/lib/track-glow.ts";
+import { SimilarTracksPanel } from "@/features/tracks/ui/similar-tracks-panel.tsx";
+import { usePlayHistory } from "@/features/tracks/api/use-play-history.ts";
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || "http://localhost:5000";
 
@@ -267,7 +269,7 @@ const FullscreenLyricsBox = ({ track, seekable }: LyricsBoxProps) => {
     }, []);
 
     return (
-        <div className="w-full lg:w-1/2 h-[45vh] lg:h-[60vh] flex flex-col bg-black/40 rounded-3xl p-2 sm:p-4 border border-white/10 backdrop-blur-2xl shadow-2xl overflow-hidden min-h-0">
+        <div className="w-full h-full flex flex-col bg-black/40 rounded-3xl p-2 sm:p-4 border border-white/10 backdrop-blur-2xl shadow-2xl overflow-hidden min-h-0">
             {isLoadingLyrics ? (
                 <div className="text-center text-zinc-300 animate-pulse text-lg font-medium my-auto">
                     Загрузка текста...
@@ -288,6 +290,51 @@ const FullscreenLyricsBox = ({ track, seekable }: LyricsBoxProps) => {
     );
 };
 
+/* ---------- Правая панель фуллскрина: текст песни или похожие треки ---------- */
+
+type SideTab = "lyrics" | "similar";
+
+const FullscreenSidePanel = ({ track, seekable }: LyricsBoxProps) => {
+    const [tab, setTab] = useState<SideTab>("lyrics");
+
+    const tabs: { id: SideTab; label: string }[] = [
+        { id: "lyrics", label: "Текст" },
+        { id: "similar", label: "Похожие" },
+    ];
+
+    return (
+        <div className="w-full lg:w-1/2 flex flex-col gap-3 min-h-0">
+            <div
+                role="tablist"
+                className="flex self-center gap-1 p-1 rounded-full bg-black/30 border border-white/10 backdrop-blur-xl"
+            >
+                {tabs.map((t) => (
+                    <button
+                        key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === t.id}
+                        onClick={() => setTab(t.id)}
+                        className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+                            tab === t.id ? "bg-white/20 text-white" : "text-zinc-300 hover:text-white"
+                        }`}
+                    >
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="h-[40vh] lg:h-[55vh] min-h-0">
+                {tab === "lyrics" ? (
+                    <FullscreenLyricsBox track={track} seekable={seekable} />
+                ) : (
+                    <SimilarTracksPanel trackId={track._id} />
+                )}
+            </div>
+        </div>
+    );
+};
+
 // onExpand в сравнении нужен, чтобы кнопка и клавиша F в плеере не работали со «старым» состоянием фуллскрина
 const MemoizedCustomAudioPlayer = React.memo((props: any) => {
     return <CustomAudioPlayer {...props} />;
@@ -301,6 +348,7 @@ const MemoizedCustomAudioPlayer = React.memo((props: any) => {
         prevProps.onExpand === nextProps.onExpand
     );
 });
+
 
 export const GlobalPlayer = () => {
     const {
@@ -322,6 +370,8 @@ export const GlobalPlayer = () => {
 
     const coverSrc = getMediaUrl(currentTrack?.coverUrl);
     const ambientColor = useCoverColor(coverSrc, "#6366f1");
+    // Засчитываем прослушивание, когда трек играл 20 секунд
+    usePlayHistory(currentTrack?._id);
 
     // Режим винила запоминается между сессиями
     const [vinyl, setVinyl] = useState(() => localStorage.getItem("player-vinyl") === "true");
@@ -505,7 +555,7 @@ export const GlobalPlayer = () => {
                                     </div>
                                 </div>
 
-                                <FullscreenLyricsBox track={currentTrack} seekable={isSeekable} />
+                                <FullscreenSidePanel track={currentTrack} seekable={isSeekable} />
                             </div>
                         </>
                     )}

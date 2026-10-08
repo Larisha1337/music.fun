@@ -2,7 +2,7 @@ import Track from '../models/Track.js'
 import User from '../models/User.js'
 import { uploadToR2, deleteFromR2, getFileStreamFromR2 } from '../service/r2.js'
 import { ensureCached, mimeForFile } from '../service/audio-cache.js'
-import axios from 'axios';
+import { enqueueTrackProcessing } from '../service/track-pipeline.js'
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -103,24 +103,6 @@ export const getMyTracks = async (req, res) => {
     }
 }
 
-// Запрос анализа в Python-микросервис
-export const analyzeTrackWithPython = async (fileUrl) => {
-    try {
-        const response = await axios.post(
-            'http://127.0.0.1:8000/analyze',
-            { url: fileUrl },
-            { timeout: 60000 }
-        );
-        return response.data; // { bpm: 120, key: "Am" }
-    } catch (error) {
-        console.error(
-            '[Python Analyzer Error]:',
-            error.response?.data || error.message
-        );
-        return { bpm: null, key: null };
-    }
-};
-
 // 3. Создание трека с возможностью загрузить свой MP3 и обложку
 export const createTrack = async (req, res) => {
     try {
@@ -140,7 +122,6 @@ export const createTrack = async (req, res) => {
         let fileUrl = '';
         let isStreamed = true;
 
-        // Если пользователь прикрепил свой MP3 файл
         if (audioFile) {
             fileUrl = await uploadToR2(audioFile, 'tracks');
             isStreamed = false;
@@ -149,18 +130,6 @@ export const createTrack = async (req, res) => {
         let coverUrl = null;
         if (coverFile) {
             coverUrl = await uploadToR2(coverFile, 'track-covers');
-        }
-
-        // Python-анализатор (только если есть загруженный файл)
-        let bpm = null;
-        let musicalKey = null;
-
-        if (fileUrl) {
-            console.log('[Analyzer] Отправка трека на анализ в Python...');
-            const analysis = await analyzeTrackWithPython(fileUrl);
-            bpm = analysis.bpm;
-            musicalKey = analysis.key;
-            console.log(`[Analyzer] Результат: BPM=${bpm}, Key=${musicalKey}`);
         }
 
         const user = await User.findById(userId).select('email name').lean()
@@ -173,9 +142,10 @@ export const createTrack = async (req, res) => {
             fileUrl,
             isSeed: false,
             isStreamed,
-            bpm,
-            musicalKey,
         })
+
+        // BPM, тональность и волна считаются в фоне
+        if (fileUrl) enqueueTrackProcessing(track._id)
 
         const trackWithAuthor = {
             ...track.toObject(),
@@ -187,11 +157,6 @@ export const createTrack = async (req, res) => {
         console.error('[Create Track Error]:', error);
         res.status(500).json({ message: 'Ошибка при создании трека' });
     }
-}
-
-const isR2Track = (track) => {
-    const r2Domain = process.env.R2_PUBLIC_DOMAIN
-    return Boolean(track.fileUrl && r2Domain && track.fileUrl.startsWith(r2Domain))
 }
 
 // 4. Универсальный стриминг аудио (файлы из R2 и YouTube через дисковый кэш)
@@ -375,6 +340,7 @@ export const updateTrackFile = async (req, res) => {
         track.fileUrl = await uploadToR2(req.file, 'tracks')
         track.isStreamed = false
         await track.save()
+        enqueueTrackProcessing(track._id)
 
         res.json({ track })
     } catch (error) {

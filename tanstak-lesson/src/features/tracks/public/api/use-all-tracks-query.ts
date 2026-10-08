@@ -1,15 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import type { Track } from '@/features/tracks/ui/track-list'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
-
-type Track = {
-    _id: string
-    title: string
-    fileUrl: string
-    artist?: string
-    coverUrl?: string | null
-    authorEmail?: string
-}
 
 export const useAllTracksQuery = () => {
     return useQuery({

@@ -9,6 +9,7 @@ import trackRoutes from './routes/track.js'
 import authRoutes from './routes/auth.js'
 import playlistRoutes from './routes/playlist.js'
 import { initAudioCache } from './service/audio-cache.js'
+import historyRoutes from './routes/history.js'
 
 if (!process.env.JWT_SECRET) {
     console.error('Не задан JWT_SECRET в .env')
@@ -53,6 +54,7 @@ app.use('/api/user', userRoutes)
 app.use('/api/tracks', trackRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/playlists', playlistRoutes)
+app.use('/api/history', historyRoutes)
 
 // Единый обработчик ошибок: ошибки загрузки файлов и битый JSON становятся 400, а не 500
 app.use((err, req, res, next) => {

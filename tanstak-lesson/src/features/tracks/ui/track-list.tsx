@@ -4,6 +4,7 @@ import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal'
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx"
 import { TrackSkeleton } from "@/shared/ui/track-skeleton.tsx"
+import { TrackBadges } from './track-badges.tsx'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
@@ -14,6 +15,8 @@ export type Track = {
     coverUrl?: string | null
     artist?: string
     authorEmail?: string
+    bpm?: number | null
+    musicalKey?: string | null
 }
 
 interface TrackListProps {
@@ -222,6 +225,8 @@ export const TrackList = ({
                                 <span className="text-xs sm:text-sm text-zinc-400 truncate mt-0.5">
                                     {displayArtist}
                                 </span>
+
+                                <TrackBadges bpm={track.bpm} musicalKey={track.musicalKey} />
 
                                 {showAuthor && track.authorEmail && (
                                     <span className="text-[10px] sm:text-[11px] text-zinc-500 truncate mt-0.5 sm:mt-1">

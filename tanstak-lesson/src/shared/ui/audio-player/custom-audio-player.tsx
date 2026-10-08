@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect, type ChangeEvent, memo, useCallback } from "react";
+import { useState, useRef, useEffect, type ChangeEvent, memo, useCallback, useMemo } from "react";
 import { AudioVisualizer } from "./audio-visualizer";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx";
 import { setGlow, resetGlow, vividRgb } from "@/shared/ui/lib/track-glow.ts";
+import { WaveformBar } from "./waveform-bar";
+import { useTrackPeaksQuery } from "@/shared/api/use-track-peaks-query.ts";
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -183,6 +185,10 @@ export const CustomAudioPlayer = ({
     const [isBuffering, setIsBuffering] = useState(false);
     const [duration, setDuration] = useState(0);
     const [trackColor, setTrackColor] = useState(ambientColor);
+
+    // Волна трека (если для него уже посчитан анализ)
+    const { data: peaks } = useTrackPeaksQuery(trackId);
+    const waveColor = useMemo(() => `rgb(${vividRgb(trackColor).join(', ')})`, [trackColor]);
 
     // Цвет из обложки
     useEffect(() => {
@@ -587,14 +593,26 @@ export const CustomAudioPlayer = ({
                     {trackId && <TrackLikeButton trackId={trackId} />}
                 </div>
 
-                <AudioProgressBar
-                    audioRef={audioRef}
-                    duration={duration}
-                    isSeekable={isSeekable}
-                    ambientColor={trackColor}
-                    onTimeUpdate={onTimeUpdate}
-                    src={src}
-                />
+                {peaks && peaks.length > 20 ? (
+                    <WaveformBar
+                        audioRef={audioRef}
+                        peaks={peaks}
+                        duration={duration}
+                        isSeekable={isSeekable}
+                        color={waveColor}
+                        src={src}
+                        onTimeUpdate={onTimeUpdate}
+                    />
+                ) : (
+                    <AudioProgressBar
+                        audioRef={audioRef}
+                        duration={duration}
+                        isSeekable={isSeekable}
+                        ambientColor={trackColor}
+                        onTimeUpdate={onTimeUpdate}
+                        src={src}
+                    />
+                )}
             </div>
 
             {/* 3. Правая зона: визуализатор, громкость, доп. кнопки */}

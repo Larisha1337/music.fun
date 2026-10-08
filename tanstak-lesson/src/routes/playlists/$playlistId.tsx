@@ -53,7 +53,7 @@ function PlaylistDetailPage() {
     const { mutate: updatePlaylist, isPending: isUpdating } = useUpdatePlaylistMutation(playlistId);
     const { mutate: deletePlaylist, isPending: isDeleting } = useDeletePlaylistMutation();
 
-    const { currentTrack, playTrack, closePlayer } = useAudioPlayer();
+    const { currentTrack, playTrack, closePlayer, isShuffle, toggleShuffle } = useAudioPlayer();
 
     const [localTracks, setLocalTracks] = useState<any[]>([]);
 
@@ -102,6 +102,22 @@ function PlaylistDetailPage() {
 
             updatePlaylist(formData);
         }
+    };
+
+    // Случайный трек из плейлиста + включаем shuffle, чтобы следующие тоже шли вперемешку
+    const handlePlayShuffled = () => {
+        if (localTracks.length === 0) return;
+
+        if (!isShuffle) toggleShuffle();
+
+        // Не выбираем тот трек, что уже играет (если в плейлисте есть другие)
+        const pool =
+            localTracks.length > 1
+                ? localTracks.filter((t) => t._id !== currentTrack?._id)
+                : localTracks;
+
+        const random = pool[Math.floor(Math.random() * pool.length)];
+        playTrack(random, localTracks);
     };
 
     const handleSavePlaylist = (formData: FormData) => {
@@ -178,19 +194,38 @@ function PlaylistDetailPage() {
                         <span>{localTracks.length} треков</span>
                     </div>
 
-                    {/* Кнопки действий (Плей / Редактировать) */}
-                    <div className="flex items-center gap-3 mt-3">
+                    {/* Кнопки действий (Слушать / Вперемешку / Редактировать) */}
+                    <div className="flex flex-wrap items-center gap-3 mt-3">
                         {localTracks.length > 0 && (
-                            <button
-                                type="button"
-                                onClick={() => playTrack(localTracks[0], localTracks)}
-                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2"
-                            >
-                                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                                    <path d="M8 5v14l11-7z" />
-                                </svg>
-                                Слушать
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => playTrack(localTracks[0], localTracks)}
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z" />
+                                    </svg>
+                                    Слушать
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handlePlayShuffled}
+                                    aria-pressed={isShuffle}
+                                    title="Включить случайный трек из плейлиста"
+                                    className={`px-4 py-2.5 font-semibold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-2 border ${
+                                        isShuffle
+                                            ? "bg-indigo-500/20 border-indigo-400/40 text-indigo-300 hover:bg-indigo-500/30"
+                                            : "bg-white/10 border-white/5 text-white hover:bg-white/15"
+                                    }`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+                                    </svg>
+                                    Вперемешку
+                                </button>
+                            </>
                         )}
                         <button
                             type="button"
