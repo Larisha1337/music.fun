@@ -9,6 +9,8 @@ import { fetchLyrics } from "@/shared/api/lyrics-api";
 import { subscribeBeat } from "@/shared/ui/lib/track-glow.ts";
 import { SimilarTracksPanel } from "@/features/tracks/ui/similar-tracks-panel.tsx";
 import { usePlayHistory } from "@/features/tracks/api/use-play-history.ts";
+import { QueuePanel } from "@/shared/ui/audio-player/queue-panel";
+import { usePreloadNext } from "@/shared/ui/lib/use-preload-next";
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || "http://localhost:5000";
 
@@ -22,6 +24,15 @@ const getMediaUrl = (url?: string | null): string | null => {
 const prefersReducedMotion = () =>
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Трек играет через сервер (YouTube-кэш), если у него нет собственного файла
+const isStreamedUrl = (url?: string | null) =>
+    !url || url.trim() === "" || /googlevideo\.com|youtube\.com|dzcdn\.net/.test(url);
+
+const audioSrcFor = (track: { _id: string; fileUrl?: string | null }) =>
+    isStreamedUrl(track.fileUrl)
+        ? `${MY_API_BASE}/api/tracks/${track._id}/stream`
+        : getMediaUrl(track.fileUrl)!;
 
 /* ---------- Обложка / вращающаяся виниловая пластинка ---------- */
 
@@ -218,21 +229,18 @@ type LyricsBoxProps = {
     seekable: boolean;
 };
 
+// Компонент пересоздаётся при смене трека (key={track._id} снаружи),
+// поэтому сбрасывать состояние внутри эффекта не нужно
 const FullscreenLyricsBox = ({ track, seekable }: LyricsBoxProps) => {
     const [lrcString, setLrcString] = useState("");
-    const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
+    const [isLoadingLyrics, setIsLoadingLyrics] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
 
-    const lyrics = useMemo(() => {
-        return lrcString ? parseLrc(lrcString) : [];
-    }, [lrcString]);
+    const lyrics = useMemo(() => (lrcString ? parseLrc(lrcString) : []), [lrcString]);
 
     useEffect(() => {
-        if (!track) return;
         let isCancelled = false;
 
-        setLrcString("");
-        setIsLoadingLyrics(true);
         fetchLyrics(track.title, track.artist)
             .then((lrc) => {
                 if (!isCancelled) setLrcString(lrc || "");
@@ -244,25 +252,25 @@ const FullscreenLyricsBox = ({ track, seekable }: LyricsBoxProps) => {
         return () => {
             isCancelled = true;
         };
-    }, [track._id, track.title, track.artist]);
+    }, [track.title, track.artist]);
 
     useEffect(() => {
-        const audioEl = document.querySelector('audio');
+        const audioEl = document.querySelector("audio");
         if (!audioEl) return;
 
         const handleTimeUpdate = () => {
             setCurrentTime(audioEl.currentTime);
         };
 
-        audioEl.addEventListener('timeupdate', handleTimeUpdate);
+        audioEl.addEventListener("timeupdate", handleTimeUpdate);
         return () => {
-            audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+            audioEl.removeEventListener("timeupdate", handleTimeUpdate);
         };
     }, []);
 
     // Клик по строке перематывает трек (только для загруженных файлов: у YouTube-потока перемотки нет)
     const handleLineClick = useCallback((time: number) => {
-        const audioEl = document.querySelector('audio');
+        const audioEl = document.querySelector("audio");
         if (!audioEl) return;
         audioEl.currentTime = time;
         setCurrentTime(time);
@@ -290,7 +298,7 @@ const FullscreenLyricsBox = ({ track, seekable }: LyricsBoxProps) => {
     );
 };
 
-/* ---------- Правая панель фуллскрина: текст песни или похожие треки ---------- */
+/* ---------- Правая панель полноэкранного режима: текст песни или похожие треки ---------- */
 
 type SideTab = "lyrics" | "similar";
 
@@ -326,7 +334,7 @@ const FullscreenSidePanel = ({ track, seekable }: LyricsBoxProps) => {
 
             <div className="h-[40vh] lg:h-[55vh] min-h-0">
                 {tab === "lyrics" ? (
-                    <FullscreenLyricsBox track={track} seekable={seekable} />
+                    <FullscreenLyricsBox key={track._id} track={track} seekable={seekable} />
                 ) : (
                     <SimilarTracksPanel trackId={track._id} />
                 )}
@@ -335,24 +343,24 @@ const FullscreenSidePanel = ({ track, seekable }: LyricsBoxProps) => {
     );
 };
 
-// onExpand в сравнении нужен, чтобы кнопка и клавиша F в плеере не работали со «старым» состоянием фуллскрина
-const MemoizedCustomAudioPlayer = React.memo((props: any) => {
-    return <CustomAudioPlayer {...props} />;
-}, (prevProps, nextProps) => {
-    return (
-        prevProps.trackId === nextProps.trackId &&
-        prevProps.isPlaying === nextProps.isPlaying &&
-        prevProps.repeatMode === nextProps.repeatMode &&
-        prevProps.isShuffle === nextProps.isShuffle &&
-        prevProps.src === nextProps.src &&
-        prevProps.onExpand === nextProps.onExpand
-    );
-});
+type PlayerProps = React.ComponentProps<typeof CustomAudioPlayer>;
 
+// onExpand в сравнении нужен, чтобы кнопка и клавиша F в плеере не работали со «старым» состоянием полноэкранного режима
+const MemoizedCustomAudioPlayer = React.memo(
+    (props: PlayerProps) => <CustomAudioPlayer {...props} />,
+    (prev, next) =>
+        prev.trackId === next.trackId &&
+        prev.isPlaying === next.isPlaying &&
+        prev.repeatMode === next.repeatMode &&
+        prev.isShuffle === next.isShuffle &&
+        prev.src === next.src &&
+        prev.onExpand === next.onExpand
+);
 
 export const GlobalPlayer = () => {
     const {
         currentTrack,
+        playlist,
         isPlaying,
         togglePlay,
         playNext,
@@ -363,13 +371,27 @@ export const GlobalPlayer = () => {
         toggleRepeatMode,
         toggleShuffle,
         isFullscreen,
-        toggleFullscreen
+        toggleFullscreen,
     } = useAudioPlayer();
 
     const { isPipOpen, isSupported, togglePip, renderPip } = usePictureInPicture();
 
     const coverSrc = getMediaUrl(currentTrack?.coverUrl);
     const ambientColor = useCoverColor(coverSrc, "#6366f1");
+    const [queueOpen, setQueueOpen] = useState(false);
+
+    // Следующий трек очереди готовим заранее. При shuffle он выбирается случайно в момент перехода, поэтому тогда не знаем
+    const nextTrack = useMemo(() => {
+        if (!currentTrack || isShuffle || repeatMode === "one" || playlist.length < 2) return null;
+        const i = playlist.findIndex((t) => t._id === currentTrack._id);
+        return i < 0 ? null : playlist[(i + 1) % playlist.length] ?? null;
+    }, [currentTrack, playlist, isShuffle, repeatMode]);
+
+    usePreloadNext(
+        nextTrack
+            ? { id: nextTrack._id, src: audioSrcFor(nextTrack), streamed: isStreamedUrl(nextTrack.fileUrl) }
+            : null
+    );
     // Засчитываем прослушивание, когда трек играл 20 секунд
     usePlayHistory(currentTrack?._id);
 
@@ -438,14 +460,8 @@ export const GlobalPlayer = () => {
 
     if (!currentTrack) return null;
 
-    const isExternalUrl = (url?: string | null) =>
-        !url || url.trim() === "" || /googlevideo\.com|youtube\.com|dzcdn\.net/.test(url);
-
-    const hasCustomFile = !isExternalUrl(currentTrack?.fileUrl);
-    const audioSrc = hasCustomFile
-        ? getMediaUrl(currentTrack.fileUrl)!
-        : `${MY_API_BASE}/api/tracks/${currentTrack._id}/stream`;
-    const isSeekable = true // и R2, и кэш YouTube отдаются с поддержкой перемотки
+    const audioSrc = audioSrcFor(currentTrack);
+    const isSeekable = true; // и R2, и кэш YouTube отдаются с поддержкой перемотки
 
     // Кнопка режима PiP
     const pipButton = isSupported ? (
@@ -460,6 +476,22 @@ export const GlobalPlayer = () => {
             </svg>
         </button>
     ) : null;
+
+    // Кнопка очереди в панели плеера (на телефоне вход в очередь есть в меню настроек)
+    const queueButton = (
+        <button
+            type="button"
+            data-queue-toggle
+            onClick={() => setQueueOpen((v) => !v)}
+            title="Очередь воспроизведения"
+            aria-label="Очередь воспроизведения"
+            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-white/15 transition-colors cursor-pointer shrink-0"
+        >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7m6-4v6m-3-3h6" />
+            </svg>
+        </button>
+    );
 
     return (
         <>
@@ -560,7 +592,7 @@ export const GlobalPlayer = () => {
                         </>
                     )}
 
-                    {/* Плеер (в нижней панели или внизу фуллскрина) */}
+                    {/* Плеер (в нижней панели или внизу полноэкранного режима) */}
                     <div className="w-full flex items-center">
                         <MemoizedCustomAudioPlayer
                             src={audioSrc}
@@ -582,11 +614,14 @@ export const GlobalPlayer = () => {
                             autoPlay
                             onClose={closePlayer}
                             onExpand={toggleFullscreen}
-                            extraRightControls={pipButton}
+                            onOpenQueue={() => setQueueOpen(true)}
+                            extraRightControls={<>{queueButton}{pipButton}</>}
                         />
                     </div>
                 </div>
             )}
+
+            <QueuePanel open={queueOpen && !isPipOpen} onClose={() => setQueueOpen(false)} />
 
             {/* Режим Picture-in-Picture */}
             {isPipOpen &&

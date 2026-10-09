@@ -18,15 +18,20 @@ type AudioPlayerContextType = {
     repeatMode: RepeatMode;
     isShuffle: boolean;
     isFullscreen: boolean;
-    isPlaying: boolean; // 👈 Добавили в тип
+    isPlaying: boolean;
     playTrack: (track: TrackInfo, playlist?: TrackInfo[]) => void;
-    togglePlay: () => void; // 👈 Добавили в тип
+    togglePlay: () => void;
     playNext: () => void;
     playPrev: () => void;
     toggleRepeatMode: () => void;
     toggleShuffle: () => void;
     toggleFullscreen: () => void;
     closePlayer: () => void;
+    // Очередь
+    moveInQueue: (fromId: string, toId: string) => void;
+    removeFromQueue: (trackId: string) => void;
+    playNextTrack: (track: TrackInfo) => void;
+    addToQueue: (track: TrackInfo) => void;
 };
 
 // Хелпер нормализации данных трека
@@ -58,6 +63,10 @@ const normalizeTrack = (track: TrackInfo): TrackInfo => {
     };
 };
 
+const persistPlaylist = (list: TrackInfo[]) => {
+    localStorage.setItem('player-playlist', JSON.stringify(list));
+};
+
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
 export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
@@ -73,7 +82,7 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         return parsed.map(normalizeTrack);
     });
 
-    // 💡 Стейт воспроизведения (с восстановлением из localStorage)
+    // Стейт воспроизведения (с восстановлением из localStorage)
     const [isPlaying, setIsPlaying] = useState<boolean>(() => {
         return localStorage.getItem('player-was-playing') === 'true';
     });
@@ -109,7 +118,7 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         });
     };
 
-    // 💡 Переключение Play/Pause
+    // Переключение Play/Pause
     const togglePlay = () => {
         setIsPlaying((prev) => {
             const next = !prev;
@@ -129,7 +138,7 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         if (newPlaylist) {
             const formattedPlaylist = newPlaylist.map(normalizeTrack);
             setPlaylist(formattedPlaylist);
-            localStorage.setItem('player-playlist', JSON.stringify(formattedPlaylist));
+            persistPlaylist(formattedPlaylist);
         }
     };
 
@@ -196,6 +205,60 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem('player-was-playing');
     };
 
+    /* ---------- Очередь ---------- */
+
+    const applyQueue = (next: TrackInfo[]) => {
+        setPlaylist(next);
+        persistPlaylist(next);
+    };
+
+    /** Очередь, в которой гарантированно есть играющий трек (если он не из списка, ставим его первым) */
+    const queueWithCurrent = (list: TrackInfo[]) =>
+        currentTrack && !list.some((t) => t._id === currentTrack._id) ? [currentTrack, ...list] : list;
+
+    const moveInQueue = (fromId: string, toId: string) => {
+        const from = playlist.findIndex((t) => t._id === fromId);
+        const to = playlist.findIndex((t) => t._id === toId);
+        if (from < 0 || to < 0 || from === to) return;
+
+        const next = [...playlist];
+        const [item] = next.splice(from, 1);
+        if (!item) return;
+        next.splice(to, 0, item);
+        applyQueue(next);
+    };
+
+    const removeFromQueue = (trackId: string) => {
+        if (currentTrack?._id === trackId) return; // играющий трек из очереди не убираем
+        applyQueue(playlist.filter((t) => t._id !== trackId));
+    };
+
+    const playNextTrack = (track: TrackInfo) => {
+        const item = normalizeTrack(track);
+
+        if (!currentTrack) {
+            playTrack(item, [item]);
+            return;
+        }
+        if (item._id === currentTrack._id) return;
+
+        const base = queueWithCurrent(playlist.filter((t) => t._id !== item._id));
+        const at = base.findIndex((t) => t._id === currentTrack._id) + 1;
+        applyQueue([...base.slice(0, at), item, ...base.slice(at)]);
+    };
+
+    const addToQueue = (track: TrackInfo) => {
+        const item = normalizeTrack(track);
+
+        if (!currentTrack) {
+            playTrack(item, [item]);
+            return;
+        }
+        if (playlist.some((t) => t._id === item._id)) return;
+
+        applyQueue([...queueWithCurrent(playlist), item]);
+    };
+
     return (
         <AudioPlayerContext.Provider
             value={{
@@ -213,6 +276,10 @@ export const AudioPlayerProvider = ({ children }: { children: ReactNode }) => {
                 toggleShuffle,
                 toggleFullscreen,
                 closePlayer,
+                moveInQueue,
+                removeFromQueue,
+                playNextTrack,
+                addToQueue,
             }}
         >
             {children}

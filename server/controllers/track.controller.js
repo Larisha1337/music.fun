@@ -3,20 +3,24 @@ import User from '../models/User.js'
 import { uploadToR2, deleteFromR2, getFileStreamFromR2 } from '../service/r2.js'
 import { ensureCached, mimeForFile } from '../service/audio-cache.js'
 import { enqueueTrackProcessing } from '../service/track-pipeline.js'
+import { KEYS_BY_CAMELOT } from '../service/camelot.js'
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const SORTS = new Set(['new', 'bpm-asc', 'bpm-desc', 'key'])
+
 // 1. Глобальная лента (с авторами).
-// Без параметров отдаёт всё, как раньше. Параметры: ?page=1&limit=30&q=поиск
+// Без limit отдаёт всё. Параметры: page, limit, q, sort=new|bpm-asc|bpm-desc|key, key=Am
 export const getAllTracks = async (req, res) => {
     try {
         const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 100)
         const page = Math.max(parseInt(req.query.page, 10) || 1, 1)
         const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : ''
+        const key = typeof req.query.key === 'string' ? req.query.key.trim().slice(0, 4) : ''
+        const sort = SORTS.has(req.query.sort) ? req.query.sort : 'new'
 
         const filter = {}
         if (q) {
-            // Поиск по названию, исполнителю и имени/почте автора загрузки
             const rx = new RegExp(escapeRegex(q), 'i')
             const authors = await User.find({ $or: [{ name: rx }, { email: rx }] })
                 .select('_id')
@@ -29,14 +33,37 @@ export const getAllTracks = async (req, res) => {
                 { userId: { $in: authors.map((a) => a._id.toString()) } },
             ]
         }
+        if (key) filter.musicalKey = key
 
-        let query = Track.find(filter).sort({ createdAt: -1, _id: -1 })
-        if (limit) query = query.skip((page - 1) * limit).limit(limit)
+        let tracks
+        if (sort === 'new') {
+            let query = Track.find(filter).sort({ createdAt: -1, _id: -1 })
+            if (limit) query = query.skip((page - 1) * limit).limit(limit)
+            tracks = await query.lean()
+        } else {
+            const pipeline = [{ $match: filter }]
 
-        const [tracks, total] = await Promise.all([
-            query.lean(),
-            limit ? Track.countDocuments(filter) : Promise.resolve(0),
-        ])
+            if (sort === 'key') {
+                pipeline.push(
+                    { $addFields: { _keyIdx: { $indexOfArray: [KEYS_BY_CAMELOT, '$musicalKey'] } } },
+                    { $addFields: { _keyRank: { $cond: [{ $lt: ['$_keyIdx', 0] }, 999, '$_keyIdx'] } } },
+                    { $sort: { _keyRank: 1, _id: -1 } }
+                )
+            } else {
+                // Треки без BPM всегда в конце
+                pipeline.push(
+                    { $addFields: { _hasBpm: { $cond: [{ $gt: ['$bpm', 0] }, 1, 0] } } },
+                    { $sort: { _hasBpm: -1, bpm: sort === 'bpm-asc' ? 1 : -1, _id: -1 } }
+                )
+            }
+
+            if (limit) pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit })
+            // aggregate не знает про select:false, поэтому волну убираем явно
+            pipeline.push({ $project: { peaks: 0, _keyIdx: 0, _keyRank: 0, _hasBpm: 0 } })
+            tracks = await Track.aggregate(pipeline)
+        }
+
+        const total = limit ? await Track.countDocuments(filter) : 0
 
         const userIds = [...new Set(
             tracks
@@ -69,6 +96,20 @@ export const getAllTracks = async (req, res) => {
     } catch (error) {
         console.error('[Error GET /api/tracks]:', error)
         res.status(500).json({ message: 'Ошибка получения треков' })
+    }
+}
+
+// Данные для панели фильтров: какие тональности есть в библиотеке и есть ли вообще анализ
+export const getTrackFacets = async (req, res) => {
+    try {
+        const keys = await Track.distinct('musicalKey', { musicalKey: { $ne: null } })
+        const hasAnalysis = keys.length > 0 || Boolean(await Track.exists({ bpm: { $ne: null } }))
+
+        res.set('Cache-Control', 'public, max-age=30')
+        res.json({ keys: keys.filter(Boolean), hasAnalysis })
+    } catch (error) {
+        console.error('[Facets Error]:', error)
+        res.status(500).json({ message: 'Ошибка получения фильтров' })
     }
 }
 

@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect, type ChangeEvent, memo, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, type ChangeEvent, memo, useCallback } from "react";
 import { AudioVisualizer } from "./audio-visualizer";
+import { WaveformBar } from "./waveform-bar";
+import { PlayerSettingsMenu } from "./player-settings-menu";
+import { useSleepTimer } from "./use-sleep-timer";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx";
 import { setGlow, resetGlow, vividRgb } from "@/shared/ui/lib/track-glow.ts";
-import { WaveformBar } from "./waveform-bar";
 import { useTrackPeaksQuery } from "@/shared/api/use-track-peaks-query.ts";
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -29,6 +31,7 @@ type Props = {
     onPrev?: () => void;
     onClose?: () => void;
     onExpand?: () => void;
+    onOpenQueue?: () => void;
     extraRightControls?: React.ReactNode;
 };
 
@@ -50,6 +53,10 @@ const RepeatOneIcon = ({ className }: { className?: string }) => (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v6m-1-5l1-1" />
     </svg>
 );
+
+// Громкость, сохранённая плеером (нужна таймеру сна, чтобы вернуть звук после затухания)
+const readStoredVolume = () =>
+    localStorage.getItem('player-muted') === 'true' ? 0 : Number(localStorage.getItem('player-volume') ?? 1);
 
 type ProgressBarProps = {
     audioRef: React.RefObject<HTMLAudioElement | null>;
@@ -178,6 +185,7 @@ export const CustomAudioPlayer = ({
                                       onPrev,
                                       onClose,
                                       onExpand,
+                                      onOpenQueue,
                                       extraRightControls
                                   }: Props) => {
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -267,6 +275,31 @@ export const CustomAudioPlayer = ({
             audioRef.current.volume = isMuted ? 0 : volume;
         }
     }, [volume, isMuted]);
+
+    // Скорость воспроизведения (запоминается; defaultPlaybackRate нужен, чтобы она не сбрасывалась при смене трека)
+    const [rate, setRate] = useState<number>(() => {
+        const saved = Number(localStorage.getItem('player-rate'));
+        return saved >= 0.5 && saved <= 2 ? saved : 1;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('player-rate', String(rate));
+        const audio = audioRef.current;
+        if (audio) {
+            audio.defaultPlaybackRate = rate;
+            audio.playbackRate = rate;
+        }
+    }, [rate, src]);
+
+    // Таймер сна
+    const sleep = useSleepTimer({
+        audioRef,
+        getVolume: readStoredVolume,
+        onFired: () => {
+            setIsPlaying(false);
+            localStorage.setItem('player-was-playing', 'false');
+        },
+    });
 
     // Загрузка трека + автовоспроизведение (с ожиданием клика, если браузер заблокировал)
     useEffect(() => {
@@ -377,6 +410,14 @@ export const CustomAudioPlayer = ({
     }, [title, artist, coverSrc, onNext, onPrev]);
 
     const handleEndedTrack = () => {
+        // Таймер «до конца трека»: останавливаемся, следующий трек не включаем
+        if (sleep.consumeEndOfTrack()) {
+            localStorage.removeItem(`player-time-${src}`);
+            localStorage.setItem('player-was-playing', 'false');
+            setIsPlaying(false);
+            return;
+        }
+
         if (repeatMode === 'one' && audioRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
@@ -387,7 +428,6 @@ export const CustomAudioPlayer = ({
         onEnded?.();
     };
 
-    // Горячие клавиши
     // Название трека во вкладке браузера: «▶ Название — Исполнитель»
     const originalTitleRef = useRef<string | null>(null);
 
@@ -484,6 +524,8 @@ export const CustomAudioPlayer = ({
                 src={src}
                 crossOrigin="anonymous"
                 onEnded={handleEndedTrack}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
                 onWaiting={() => setIsBuffering(true)}
                 onPlaying={() => setIsBuffering(false)}
                 onCanPlay={() => setIsBuffering(false)}
@@ -590,7 +632,12 @@ export const CustomAudioPlayer = ({
                         </button>
                     )}
 
-                    {trackId && <TrackLikeButton trackId={trackId} />}
+                    {/* На самых узких экранах лайк в панели скрыт: он есть в списке треков */}
+                    {trackId && (
+                        <div className="hidden min-[400px]:block shrink-0">
+                            <TrackLikeButton trackId={trackId} />
+                        </div>
+                    )}
                 </div>
 
                 {peaks && peaks.length > 20 ? (
@@ -615,8 +662,8 @@ export const CustomAudioPlayer = ({
                 )}
             </div>
 
-            {/* 3. Правая зона: визуализатор, громкость, доп. кнопки */}
-            <div className="flex items-center gap-2 md:gap-3 shrink-0 justify-end">
+            {/* 3. Правая зона: визуализатор, громкость, настройки, доп. кнопки */}
+            <div className="flex items-center gap-1.5 md:gap-3 shrink-0 justify-end">
                 <div className="hidden lg:flex">
                     <AudioVisualizer audioRef={audioRef} isPlaying={isPlaying} color={trackColor} />
                 </div>
@@ -672,6 +719,17 @@ export const CustomAudioPlayer = ({
                         {Math.round(volumePercent)}%
                     </span>
                 </div>
+
+                <PlayerSettingsMenu
+                    rate={rate}
+                    onRate={setRate}
+                    sleepKind={sleep.mode.kind}
+                    sleepRemaining={sleep.remaining}
+                    onSleepOff={sleep.cancel}
+                    onSleepMinutes={sleep.startMinutes}
+                    onSleepEndOfTrack={sleep.startEndOfTrack}
+                    onOpenQueue={onOpenQueue}
+                />
 
                 {extraRightControls}
 

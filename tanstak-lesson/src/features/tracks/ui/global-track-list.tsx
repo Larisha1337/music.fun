@@ -1,13 +1,11 @@
-import { useState, useMemo } from 'react'
-import { TrackList } from './track-list'
-import { useAllTracksQuery } from "@/features/tracks/public/api/use-all-tracks-query.ts"
-import { TrackSearch } from "@/shared/tracks/ui/track-search.tsx"
-import { useDebounce } from "@/shared/ui/lib/debounce/useDebounce.ts"
+import { useCallback, useMemo, useState } from 'react'
+import { TrackList, type Track } from './track-list'
+import { TrackSearch } from '@/shared/tracks/ui/track-search.tsx'
+import { useDebounce } from '@/shared/ui/lib/debounce/useDebounce.ts'
 import { toCamelot, camelotSortValue } from '@/shared/ui/lib/music-key.ts'
+import { useInfiniteTracksQuery, useTrackFacetsQuery, type TrackSort } from '../api/use-infinite-tracks-query.ts'
 
-type SortMode = 'new' | 'bpm-asc' | 'bpm-desc' | 'key'
-
-const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+const SORT_OPTIONS: { value: TrackSort; label: string }[] = [
     { value: 'new', label: 'Сначала новые' },
     { value: 'bpm-asc', label: 'BPM: по возрастанию' },
     { value: 'bpm-desc', label: 'BPM: по убыванию' },
@@ -19,54 +17,44 @@ const selectClass =
     'focus:border-indigo-500/50 transition-colors [&>option]:bg-zinc-900'
 
 export const GlobalTrackList = () => {
-    const { data: tracks = [], isLoading } = useAllTracksQuery()
     const [searchQuery, setSearchQuery] = useState('')
-    const [sortMode, setSortMode] = useState<SortMode>('new')
+    const [sortMode, setSortMode] = useState<TrackSort>('new')
     const [keyFilter, setKeyFilter] = useState('')
 
     const debouncedSearch = useDebounce(searchQuery, 300)
-    const normalizedQuery = debouncedSearch.trim().toLowerCase()
+    const q = debouncedSearch.trim()
 
-    const hasAnalysis = useMemo(() => tracks.some((t) => t.bpm), [tracks])
+    const { data, isPending, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage } =
+        useInfiniteTracksQuery({ q, sort: sortMode, key: keyFilter })
+    const { data: facets } = useTrackFacetsQuery()
 
-    const availableKeys = useMemo(() => {
-        const keys = new Set<string>()
-        for (const t of tracks) if (t.musicalKey) keys.add(t.musicalKey)
-        return [...keys].sort((a, b) => camelotSortValue(a) - camelotSortValue(b))
-    }, [tracks])
-
-    const visibleTracks = useMemo(() => {
-        let list = tracks
-
-        if (normalizedQuery) {
-            list = list.filter((track) =>
-                track.title.toLowerCase().includes(normalizedQuery) ||
-                track.artist?.toLowerCase().includes(normalizedQuery) ||
-                track.authorEmail?.toLowerCase().includes(normalizedQuery)
-            )
+    // Склеиваем страницы. Дубли убираем: пока листаешь, в начало могут добавиться новые треки
+    const tracks = useMemo(() => {
+        const seen = new Set<string>()
+        const list: Track[] = []
+        for (const page of data?.pages ?? []) {
+            for (const t of page.tracks) {
+                if (!seen.has(t._id)) {
+                    seen.add(t._id)
+                    list.push(t)
+                }
+            }
         }
+        return list
+    }, [data])
 
-        if (keyFilter) list = list.filter((t) => t.musicalKey === keyFilter)
+    const total = data?.pages[0]?.total ?? 0
 
-        if (sortMode === 'new') return list
+    const loadMore = useCallback(() => {
+        if (hasNextPage && !isFetchingNextPage) fetchNextPage()
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-        // Треки без анализа всегда в конце списка
-        const sorted = [...list]
-        if (sortMode === 'bpm-asc' || sortMode === 'bpm-desc') {
-            const dir = sortMode === 'bpm-asc' ? 1 : -1
-            sorted.sort((a, b) => {
-                if (!a.bpm && !b.bpm) return 0
-                if (!a.bpm) return 1
-                if (!b.bpm) return -1
-                return (a.bpm - b.bpm) * dir
-            })
-        } else {
-            sorted.sort((a, b) => camelotSortValue(a.musicalKey) - camelotSortValue(b.musicalKey))
-        }
-        return sorted
-    }, [tracks, normalizedQuery, keyFilter, sortMode])
+    const availableKeys = useMemo(
+        () => [...(facets?.keys ?? [])].sort((a, b) => camelotSortValue(a) - camelotSortValue(b)),
+        [facets]
+    )
 
-    const isFiltered = Boolean(normalizedQuery || keyFilter)
+    const isFiltered = Boolean(q || keyFilter)
 
     return (
         <div className="w-full flex flex-col gap-3 sm:gap-4">
@@ -76,11 +64,11 @@ export const GlobalTrackList = () => {
                 placeholder="Поиск по названию, исполнителю или автору..."
             />
 
-            {hasAnalysis && (
+            {facets?.hasAnalysis && (
                 <div className="flex flex-wrap items-center gap-2 max-w-4xl mx-auto w-full -mt-1">
                     <select
                         value={sortMode}
-                        onChange={(e) => setSortMode(e.target.value as SortMode)}
+                        onChange={(e) => setSortMode(e.target.value as TrackSort)}
                         aria-label="Сортировка"
                         className={selectClass}
                     >
@@ -101,19 +89,24 @@ export const GlobalTrackList = () => {
                         ))}
                     </select>
 
-                    {isFiltered && !isLoading && (
-                        <span className="text-xs text-zinc-500 ml-auto">Найдено: {visibleTracks.length}</span>
+                    {isFiltered && !isPending && (
+                        <span className="text-xs text-zinc-500 ml-auto">Найдено: {total}</span>
                     )}
                 </div>
             )}
 
-            <TrackList
-                tracks={visibleTracks}
-                isLoading={isLoading}
-                emptyMessage={isFiltered ? 'Ничего не найдено по вашему запросу' : 'В глобальной ленте пока нет треков'}
-                showAuthor={true}
-                enableActions={false}
-            />
+            <div className={`transition-opacity duration-200 ${isPlaceholderData ? 'opacity-60' : 'opacity-100'}`}>
+                <TrackList
+                    tracks={tracks}
+                    isLoading={isPending}
+                    emptyMessage={isFiltered ? 'Ничего не найдено по вашему запросу' : 'В глобальной ленте пока нет треков'}
+                    showAuthor={true}
+                    enableActions={false}
+                    hasMore={Boolean(hasNextPage)}
+                    isFetchingMore={isFetchingNextPage}
+                    onLoadMore={loadMore}
+                />
+            </div>
         </div>
     )
 }

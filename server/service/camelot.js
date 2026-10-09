@@ -6,6 +6,12 @@ const CAMELOT = {
     'D#m': '2A', 'A#m': '3A', Fm: '4A', Cm: '5A', Gm: '6A', Dm: '7A',
 }
 
+// Тональности в порядке круга Камелот: 1A, 1B, 2A, 2B ...
+export const KEYS_BY_CAMELOT = Object.keys(CAMELOT).sort((a, b) => {
+    const rank = (k) => parseInt(CAMELOT[k], 10) * 2 + (CAMELOT[k].endsWith('B') ? 1 : 0)
+    return rank(a) - rank(b)
+})
+
 export const toCamelot = (key) => (key ? CAMELOT[key] ?? null : null)
 
 const split = (code) => ({ n: parseInt(code, 10), letter: code.slice(-1) })

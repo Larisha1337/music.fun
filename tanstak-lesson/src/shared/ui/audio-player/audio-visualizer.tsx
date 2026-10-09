@@ -1,45 +1,11 @@
 import { useEffect, useRef } from "react";
 import { publishBeat, setGlow } from "@/shared/ui/lib/track-glow.ts";
+import { getAudioGraph, type AudioGraph } from "@/shared/ui/lib/audio-engine.ts";
 
 type Props = {
     audioRef: React.RefObject<HTMLAudioElement | null>;
     isPlaying: boolean;
     color?: string;
-};
-
-type AudioGraph = { ctx: AudioContext; analyser: AnalyserNode };
-
-// Один <audio> можно подключить к Web Audio только один раз,
-// поэтому граф хранится здесь и переживает перемонтирование компонента (например, при переходе в PiP)
-const graphs = new WeakMap<HTMLMediaElement, AudioGraph>();
-
-const getGraph = (audio: HTMLMediaElement): AudioGraph | null => {
-    const existing = graphs.get(audio);
-    if (existing) return existing;
-
-    let ctx: AudioContext | null = null;
-    try {
-        const AudioContextClass =
-            window.AudioContext ||
-            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        ctx = new AudioContextClass();
-
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256; // 128 полос, примерно по 172 Гц
-        analyser.smoothingTimeConstant = 0.7;
-
-        const source = ctx.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-
-        const graph = { ctx, analyser };
-        graphs.set(audio, graph);
-        return graph;
-    } catch (e) {
-        console.warn("[AudioVisualizer] Ошибка инициализации AudioContext:", e);
-        ctx?.close().catch(() => {});
-        return null;
-    }
 };
 
 const W = 64;
@@ -61,7 +27,7 @@ export const AudioVisualizer = ({ audioRef, isPlaying, color = "#6366f1" }: Prop
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
-        graphRef.current = getGraph(audio);
+        graphRef.current = getAudioGraph(audio);
     }, [audioRef]);
 
     // 2. Возобновляем AudioContext при воспроизведении

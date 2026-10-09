@@ -1,10 +1,12 @@
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TrackActionsModal } from './track-actions-modal'
 import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal'
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx"
 import { TrackSkeleton } from "@/shared/ui/track-skeleton.tsx"
 import { TrackBadges } from './track-badges.tsx'
+import { api } from '@/shared/api/axiosInstance.ts'
+import { localStorageKey } from '@/shared/config/local-storage-key.ts'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
@@ -25,6 +27,10 @@ interface TrackListProps {
     emptyMessage?: string
     showAuthor?: boolean
     enableActions?: boolean
+    /** Постраничная подгрузка: когда список докручен до конца, вызывается onLoadMore */
+    hasMore?: boolean
+    isFetchingMore?: boolean
+    onLoadMore?: () => void
 }
 
 const getTrackDisplayInfo = (track: Track) => {
@@ -59,25 +65,30 @@ export const TrackList = ({
                               isLoading,
                               emptyMessage = 'Треков пока нет',
                               showAuthor = false,
-                              enableActions = false
+                              enableActions = false,
+                              hasMore = false,
+                              isFetchingMore = false,
+                              onLoadMore
                           }: TrackListProps) => {
     const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
     const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null)
+    const [queuedId, setQueuedId] = useState<string | null>(null)
 
-    const { currentTrack, playTrack, closePlayer } = useAudioPlayer()
+    const { currentTrack, playTrack, closePlayer, playNextTrack } = useAudioPlayer()
     const selectedTrack = tracks.find((t) => t._id === selectedTrackId)
 
-    // Подгружаем аудио в кэш, пока пользователь тянется к кнопке Play
+    // Подгружаем аудио в кэш, пока пользователь тянется к кнопке Play (только для вошедших)
     const prefetchedRef = useRef<Set<string>>(new Set())
     const hoverTimerRef = useRef<number | null>(null)
 
     const prefetchTrack = (track: Track) => {
-        // у своих загруженных треков есть fileUrl, они и так грузятся из R2
+        // у треков с файлом в R2 звук и так грузится быстро
         if (track.fileUrl?.trim()) return
         if (prefetchedRef.current.has(track._id)) return
+        if (!localStorage.getItem(localStorageKey.accessToken)) return
 
         prefetchedRef.current.add(track._id)
-        fetch(`${MY_API_BASE}/api/tracks/${track._id}/prefetch`, { method: 'POST' }).catch(() => {
+        api.post(`/tracks/${track._id}/prefetch`).catch(() => {
             prefetchedRef.current.delete(track._id)
         })
     }
@@ -91,6 +102,24 @@ export const TrackList = ({
     const onPlayHoverEnd = () => {
         if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current)
     }
+
+    // Бесконечная прокрутка: следим за пустым блоком в конце списка
+    const sentinelRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        const el = sentinelRef.current
+        if (!el || !hasMore || !onLoadMore) return
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) onLoadMore()
+            },
+            { rootMargin: '400px' }
+        )
+        observer.observe(el)
+        return () => observer.disconnect()
+        // tracks.length в зависимостях: после каждой подгрузки проверяем заново, не виден ли конец списка
+    }, [hasMore, onLoadMore, tracks.length])
 
     const togglePlay = (track: Track) => {
         if (currentTrack?._id === track._id) {
@@ -108,6 +137,19 @@ export const TrackList = ({
                 tracks
             )
         }
+    }
+
+    const handlePlayNext = (track: Track) => {
+        const { displayTitle, displayArtist } = getTrackDisplayInfo(track)
+        playNextTrack({
+            _id: track._id,
+            title: displayTitle,
+            artist: displayArtist,
+            fileUrl: track.fileUrl,
+            coverUrl: track.coverUrl
+        })
+        setQueuedId(track._id)
+        window.setTimeout(() => setQueuedId((id) => (id === track._id ? null : id)), 1200)
     }
 
     if (isLoading) {
@@ -240,6 +282,23 @@ export const TrackList = ({
                                 <TrackLikeButton trackId={track._id} />
                             </div>
 
+                            {/* Играть следующим (на телефоне скрыто, чтобы не перегружать карточку) */}
+                            <button
+                                type="button"
+                                onClick={() => handlePlayNext(track)}
+                                title="Играть следующим"
+                                aria-label={`Играть следующим: ${displayTitle}`}
+                                className="hidden sm:flex w-10 h-10 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-indigo-400 items-center justify-center border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            >
+                                {queuedId === track._id ? (
+                                    <span className="text-emerald-400 text-sm font-bold">✓</span>
+                                ) : (
+                                    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7m6-4v6m-3-3h6" />
+                                    </svg>
+                                )}
+                            </button>
+
                             {/* Добавить в плейлист */}
                             <button
                                 type="button"
@@ -253,6 +312,15 @@ export const TrackList = ({
                         </div>
                     )
                 })}
+
+                {/* Конец списка: когда он появляется на экране, подгружается следующая страница */}
+                {hasMore && <div ref={sentinelRef} aria-hidden="true" className="h-px shrink-0" />}
+
+                {isFetchingMore && (
+                    <div className="flex justify-center py-3 shrink-0">
+                        <span className="w-5 h-5 rounded-full border-2 border-white/20 border-t-indigo-400 animate-spin" />
+                    </div>
+                )}
             </div>
 
             {enableActions && selectedTrack && (

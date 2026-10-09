@@ -6,6 +6,7 @@ import { uploadTrack, uploadTrackCover, uploadTrackWithCover } from '../middlewa
 
 import {
     getAllTracks,
+    getTrackFacets,
     getMyTracks,
     createTrack,
     updateTrackTitle,
@@ -33,27 +34,24 @@ router.param('id', (req, res, next, id) => {
     next()
 })
 
-const searchLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    limit: 60,
-    keyGenerator: (req) => req.userId,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: { message: 'Слишком много поисковых запросов, подождите минуту' },
-})
+const limiter = (windowMs, limit, message) =>
+    rateLimit({
+        windowMs,
+        limit,
+        keyGenerator: (req) => req.userId,
+        standardHeaders: 'draft-7',
+        legacyHeaders: false,
+        message: { message },
+    })
 
+const searchLimiter = limiter(60 * 1000, 60, 'Слишком много поисковых запросов, подождите минуту')
 // Каждый добавленный трек запускает скачивание, поэтому лимит строже
-const addLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    limit: 30,
-    keyGenerator: (req) => req.userId,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: { message: 'Можно добавлять до 30 треков в час' },
-})
+const addLimiter = limiter(60 * 60 * 1000, 30, 'Можно добавлять до 30 треков в час')
+const prefetchLimiter = limiter(60 * 60 * 1000, 200, 'Слишком много запросов подготовки треков')
 
-// 1. Глобальная лента
+// 1. Глобальная лента и данные для фильтров
 router.get('/', getAllTracks)
+router.get('/facets', getTrackFacets)
 
 // 2. Мои треки
 router.get('/my', authMiddleware, getMyTracks)
@@ -83,14 +81,14 @@ router.put('/:id/file', authMiddleware, uploadTrack.single('file'), updateTrackF
 // 10. Удалить трек целиком
 router.delete('/:id', authMiddleware, deleteTrack)
 
-// Стриминг по ID трека (R2 или YouTube-кэш)
+// Стриминг по ID трека (R2 или YouTube-кэш). Без авторизации: тег <audio> не умеет слать заголовки
 router.get('/:id/stream', streamTrackAudio)
 
 // Волна и похожие треки
 router.get('/:id/peaks', getTrackPeaks)
 router.get('/:id/similar', getSimilarTracks)
 
-// Подгрузка в кэш заранее
-router.post('/:id/prefetch', prefetchTrackAudio)
+// Подготовка трека заранее: теперь только для вошедших и с лимитом
+router.post('/:id/prefetch', authMiddleware, prefetchLimiter, prefetchTrackAudio)
 
 export default router

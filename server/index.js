@@ -10,6 +10,8 @@ import authRoutes from './routes/auth.js'
 import playlistRoutes from './routes/playlist.js'
 import { initAudioCache } from './service/audio-cache.js'
 import historyRoutes from './routes/history.js'
+import helmet from 'helmet'
+
 
 if (!process.env.JWT_SECRET) {
     console.error('Не задан JWT_SECRET в .env')
@@ -17,6 +19,9 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express()
+
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
+
 
 // За прокси (Render, Railway, Nginx) без этого ограничитель попыток видит один и тот же IP у всех
 if (process.env.TRUST_PROXY) {
