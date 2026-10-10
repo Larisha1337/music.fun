@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap');
 @import "tailwindcss";
 
-/* Розовая палитра (брендовый цвет Anivox #F95C9E = pink-500). static: переменные есть всегда, их можно брать через var() */
+/* Розовая палитра (брендовый цвет Anivox #F95C9E = pink-500) */
 @theme static {
     --color-pink-50: #fff0f8;
     --color-pink-100: #ffe0f1;
@@ -19,8 +19,7 @@
     --font-display: "Unbounded", "Onest", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* МОСТ: старые классы indigo / violet / fuchsia / purple теперь рисуют розовый.
-   Чтобы вернуть прежние цвета, удали этот блок. Позже можно заменить поиском indigo- на pink- */
+/* МОСТ: старые классы indigo / violet / fuchsia / purple рисуют розовый. Удали блок, чтобы вернуть прежние цвета */
 @theme {
     --color-indigo-50: #fff0f8; --color-indigo-100: #ffe0f1; --color-indigo-200: #ffc4e4; --color-indigo-300: #ff9fd6; --color-indigo-400: #fb7cc0; --color-indigo-500: #f95c9e; --color-indigo-600: #e0407f; --color-indigo-700: #b82d66; --color-indigo-800: #8f2650; --color-indigo-900: #6b2040; --color-indigo-950: #3f0f25;
     --color-violet-50: #fff0f8; --color-violet-100: #ffe0f1; --color-violet-200: #ffc4e4; --color-violet-300: #ff9fd6; --color-violet-400: #fb7cc0; --color-violet-500: #f95c9e; --color-violet-600: #e0407f; --color-violet-700: #b82d66; --color-violet-800: #8f2650; --color-violet-900: #6b2040; --color-violet-950: #3f0f25;
@@ -48,15 +47,27 @@
 
 @layer base {
     :root {
-        color-scheme: dark; /* нативные списки, скроллбары и поля ввода тоже тёмные */
+        color-scheme: dark;
         accent-color: var(--color-pink-400);
     }
 
     body {
         font-family: var(--font-sans);
-        background: #120e11 !important ;
+        background: #120e11 !important;
         color: #a1a1aa;
         -webkit-font-smoothing: antialiased;
+    }
+
+    /* Добавил: мягкие розовые свечения по углам страницы, чтобы фон не был «чёрной дырой» */
+    body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+                radial-gradient(60% 45% at 12% -5%, rgb(249 92 158 / 0.11), transparent 70%),
+                radial-gradient(50% 40% at 95% 100%, rgb(255 159 214 / 0.07), transparent 70%);
     }
 
     a {
@@ -69,81 +80,122 @@
     }
 }
 
-/* Готовые элементы в стиле Anivox */
-@layer components {
-    /* Главная кнопка: светло-розовая «пилюля» с тёмным текстом */
-    /* Главная кнопка: плотный, жирный текст вместо «скелета» */
-    .btn-accent {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.75rem 1.5rem;
-        border-radius: 9999px;
-        background: #ff9fd6 !important;
-        color: #1d0a14 !important;
-        font-family: var(--font-sans) !important; /* Убираем тонкий Unbounded, ставим плотный Onest */
-        font-size: 0.8rem;
-        font-weight: 800 !important;             /* Максимальная жирность */
-        letter-spacing: 0.03em;                  /* Чуть сближаем буквы */
-        text-transform: uppercase;
-        white-space: nowrap;
-        cursor: pointer;
-        box-shadow: 0 8px 24px -10px rgba(255, 159, 214, 0.65);
-        transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
-    }
-    .btn-accent:hover {
-        background: #ffc4e4 !important;
+/* ---------- Готовые элементы в стиле Anivox ----------
+   Намеренно вне @layer: так их не перебьют чужие глобальные стили.
+
+/* Главная кнопка: светло-розовая «пилюля» с тёмным плотным текстом */
+.btn-accent {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: 0;
+    border-radius: 9999px;
+    background: var(--color-pink-300);
+    color: #1d0a14;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: 0 8px 24px -10px rgb(255 159 214 / 0.65);
+    transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+.btn-accent:hover { background: var(--color-pink-200); transform: translateY(-1px); }
+.btn-accent:active { transform: scale(0.97); }
+.btn-accent:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    background: #4a283b;
+    color: #d1a3be;
+}
+
+/* Вторичная кнопка: тёмно-серая «пилюля» */
+.btn-soft {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.2rem;
+    border: 0;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.08);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+}
+.btn-soft:hover { background: rgb(255 255 255 / 0.14); }
+.btn-soft:active { transform: scale(0.97); }
+.btn-soft:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Чип: «8.8», «16+», «2023» на Anivox */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.08);
+    color: #e4e4e7;
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* Добавил: карточка трека в «розовом стекле» вместо чёрной плашки */
+.track-card {
+    background: linear-gradient(100deg, rgb(255 159 214 / 0.07), rgb(255 255 255 / 0.025) 60%);
+    border: 1px solid rgb(255 183 213 / 0.1);
+    box-shadow: 0 8px 24px -16px rgb(0 0 0 / 0.8);
+    transition: border-color 0.25s, background 0.25s, box-shadow 0.25s, transform 0.25s;
+}
+@media (hover: hover) {
+    .track-card:hover {
+        background: linear-gradient(100deg, rgb(255 159 214 / 0.12), rgb(255 255 255 / 0.035) 60%);
+        border-color: rgb(255 159 214 / 0.32);
+        box-shadow: 0 14px 34px -16px rgb(249 92 158 / 0.45);
         transform: translateY(-1px);
     }
-    .btn-accent:active {
-        transform: scale(0.97);
-    }
-    .btn-accent:disabled {
-        opacity: 0.45;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-        background: #4a283b !important;
-        color: #d1a3be !important;
-    }
-
-    /* Вторичная кнопка: тёмно-серая «пилюля» */
-    .btn-soft {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.7rem 1.2rem;
-        border-radius: 9999px;
-        background: rgb(255 255 255 / 0.08);
-        color: #fff;
-        font-size: 0.8rem;
-        font-weight: 600;
-        white-space: nowrap;
-        cursor: pointer;
-        transition: background-color 0.2s, transform 0.2s;
-    }
-    .btn-soft:hover { background: rgb(255 255 255 / 0.14); }
-    .btn-soft:active { transform: scale(0.97); }
-    .btn-soft:disabled { opacity: 0.45; cursor: not-allowed; }
-
-    /* Чип: «8.8», «16+», «2023» на Anivox */
-    .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.3rem 0.75rem;
-        border-radius: 9999px;
-        background: rgb(255 255 255 / 0.08);
-        color: #e4e4e7;
-        font-family: var(--font-display);
-        font-size: 0.62rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-    }
 }
+.track-card[data-active="true"] {
+    background: linear-gradient(100deg, rgb(255 159 214 / 0.2), rgb(255 255 255 / 0.04) 60%);
+    border-color: rgb(255 159 214 / 0.55);
+    box-shadow: 0 0 38px -12px rgb(249 92 158 / 0.55);
+}
+
+/* Круглая кнопка-иконка в строке трека. Добавляй к ней utility `grid` (display сознательно не задан,
+   чтобы `hidden sm:grid` продолжал работать) */
+.icon-btn {
+    position: relative;
+    place-items: center;
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 0;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.06);
+    color: #d4d4d8;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, transform 0.2s;
+}
+@media (min-width: 640px) {
+    .icon-btn { width: 2.5rem; height: 2.5rem; }
+}
+.icon-btn:hover { background: rgb(255 159 214 / 0.2); color: var(--color-pink-200); }
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn:disabled { opacity: 0.6; cursor: default; }
+.icon-btn[data-on="true"] { background: rgb(255 159 214 / 0.18); color: var(--color-pink-300); }
 
 /* Кастомный скроллбар */
 @layer utilities {
@@ -166,41 +218,5 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
         background: rgba(249, 92, 158, 0.55);
         border-color: rgba(249, 92, 158, 0.3);
-    }
-}
-
-/* КЛЮЧЕВОЙ CSS ДЛЯ ТЕМЫ САКУРЫ: АНИМАЦИЯ ФОРМЫ ЛЕПЕСТКОВ */
-@layer utilities {
-    /* Основная мягкая пульсация лепестков вокруг аватара */
-    @keyframes sakura-pulse {
-        0%, 100% {
-            opacity: 0.45;
-            transform: scale(1); /* Обычный размер */
-        }
-        50% {
-            opacity: 0.75;
-            transform: scale(1.1); /* Увеличение формы лепестка на 10% */
-        }
-    }
-
-    /* Ускоренная пульсация, когда играет трек */
-    @keyframes sakura-pulse-fast {
-        0%, 100% {
-            opacity: 0.55;
-            transform: scale(1);
-        }
-        50% {
-            opacity: 0.95;
-            transform: scale(1.18); /* Форма дышит сильнее */
-        }
-    }
-
-    /* Классы для подключения анимаций в JSX */
-    .animate-sakura-pulse {
-        animation: sakura-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-
-    .animate-sakura-pulse-fast {
-        animation: sakura-pulse-fast 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
 }

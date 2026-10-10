@@ -111,9 +111,9 @@ const Carousel = ({ title, icon, tracks, isLoading, showReason = false }: Carous
                                     ) : (
                                         <span className="text-3xl">🎵</span>
                                     )}
-
+                                    <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-pink-400/25 via-transparent to-transparent" />
                                     <span
-                                        className={`absolute right-2 bottom-2 w-9 h-9 flex items-center justify-center rounded-full bg-indigo-600 text-white text-xs shadow-lg transition-all duration-300 ${
+                                        className={`absolute right-2 bottom-2 w-9 h-9 flex items-center justify-center rounded-full bg-pink-300 text-zinc-950 text-xs shadow-lg transition-all duration-300 ${
                                             isCurrent
                                                 ? 'opacity-100 translate-y-0'
                                                 : 'opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0'

@@ -78,11 +78,8 @@ export const PlaylistTrackItem = ({
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-center justify-between p-3 rounded-xl border transition-colors group ${
-                isPlaying
-                    ? "bg-indigo-950/30 border-indigo-500/40"
-                    : "bg-[#18181b] hover:bg-[#27272a] border-[#27272a]"
-            }`}
+            data-active={isPlaying}
+            className="track-card group flex items-center justify-between p-3 rounded-2xl"
         >
             <div className="flex items-center gap-3 truncate flex-1 min-w-0">
                 {/* ⠿ Ручка для захвата и перетаскивания трека */}

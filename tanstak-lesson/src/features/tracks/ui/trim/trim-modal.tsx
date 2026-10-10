@@ -182,7 +182,8 @@ export const TrimModal = ({ track, onClose }: Props) => {
         onClose()
     }
 
-    const autoTitle = `${track.title} (${fmt(start)}–${fmt(end)})`
+    const baseTitle = track.title.replace(/\s*\(\d+:\d{2}\s*[–-]\s*\d+:\d{2}\)/g, '').trim()
+    const autoTitle = `${baseTitle} (${fmt(start)}–${fmt(end)})`
     const title = titleInput ?? autoTitle
 
     const save = () => {

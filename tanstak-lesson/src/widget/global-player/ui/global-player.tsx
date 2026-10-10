@@ -362,6 +362,8 @@ const MemoizedCustomAudioPlayer = React.memo(
         prev.trim === next.trim
 );
 
+
+
 export const GlobalPlayer = () => {
     const {
         currentTrack,

@@ -4,6 +4,7 @@ import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 import { AddToPlaylistModal } from '@/features/playlists-new-my/ui/add-to-playlist-modal'
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx"
 import { TrackSkeleton } from "@/shared/ui/track-skeleton.tsx"
+import { PlayIcon, PauseIcon } from '@/shared/ui/icons/player-icons'
 import { TrackBadges } from './track-badges.tsx'
 import { api } from '@/shared/api/axiosInstance.ts'
 import { localStorageKey } from '@/shared/config/local-storage-key.ts'
@@ -82,7 +83,6 @@ export const TrackList = ({
     const hoverTimerRef = useRef<number | null>(null)
 
     const prefetchTrack = (track: Track) => {
-        // у треков с файлом в R2 звук и так грузится быстро
         if (track.fileUrl?.trim()) return
         if (prefetchedRef.current.has(track._id)) return
         if (!localStorage.getItem(localStorageKey.accessToken)) return
@@ -93,7 +93,6 @@ export const TrackList = ({
         })
     }
 
-    // Небольшая задержка, чтобы пролёт мышью по списку не запускал десятки загрузок
     const onPlayHoverStart = (track: Track) => {
         if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current)
         hoverTimerRef.current = window.setTimeout(() => prefetchTrack(track), 250)
@@ -118,7 +117,6 @@ export const TrackList = ({
         )
         observer.observe(el)
         return () => observer.disconnect()
-        // tracks.length в зависимостях: после каждой подгрузки проверяем заново, не виден ли конец списка
     }, [hasMore, onLoadMore, tracks.length])
 
     const togglePlay = (track: Track) => {
@@ -154,7 +152,7 @@ export const TrackList = ({
 
     if (isLoading) {
         return (
-            <div className="flex flex-col gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full">
+            <div className="flex flex-col gap-2.5 sm:gap-3 max-w-4xl mx-auto w-full">
                 {Array.from({ length: 5 }).map((_, index) => (
                     <TrackSkeleton key={index} />
                 ))}
@@ -164,18 +162,17 @@ export const TrackList = ({
 
     if (tracks.length === 0) {
         return (
-            <div className="text-center py-10 px-4 bg-zinc-900/30 backdrop-blur-md rounded-2xl border border-dashed border-zinc-800">
-                <p className="text-sm text-zinc-500">{emptyMessage}</p>
+            <div className="text-center py-10 px-4 rounded-2xl border border-dashed border-pink-200/15 bg-pink-300/[0.03]">
+                <p className="text-sm text-zinc-400">{emptyMessage}</p>
             </div>
         )
     }
 
     return (
         <>
-            {/* Внутренний скролл только на больших экранах, на телефоне и планшете скроллится страница.
-                Нижний отступ нужен, чтобы последний трек не прятался под фиксированным плеером. */}
+            {/* Нижний отступ нужен, чтобы последний трек не прятался под фиксированным плеером */}
             <div
-                className={`flex flex-col gap-2.5 sm:gap-3.5 max-w-4xl mx-auto w-full lg:max-h-[70vh] lg:overflow-y-auto lg:pr-2 custom-scrollbar ${
+                className={`flex flex-col gap-2.5 sm:gap-3 max-w-4xl mx-auto w-full ${
                     currentTrack ? 'pb-28 sm:pb-24' : 'pb-2'
                 }`}
             >
@@ -192,13 +189,10 @@ export const TrackList = ({
                     return (
                         <div
                             key={track._id}
-                            className={`group relative flex items-center gap-2.5 sm:gap-4 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl transition-all duration-300 border backdrop-blur-xl ${
-                                isPlaying
-                                    ? 'bg-zinc-900/90 border-indigo-500/50 shadow-[0_0_30px_rgba(249, 92, 158,0.15)] translate-y-[-1px]'
-                                    : 'bg-zinc-950/60 border-zinc-900 hover:border-zinc-700/60 hover:bg-zinc-900/50 [@media(hover:hover)]:hover:-translate-y-0.5 shadow-lg'
-                            }`}
+                            data-active={isPlaying}
+                            className="track-card group relative flex items-center gap-2.5 sm:gap-4 p-2.5 sm:p-3.5 rounded-2xl"
                         >
-                            {/* Кнопка воспроизведения */}
+                            {/* Кнопка воспроизведения: как «Слушать», только круглая */}
                             <button
                                 type="button"
                                 onClick={() => togglePlay(track)}
@@ -207,23 +201,23 @@ export const TrackList = ({
                                 onTouchStart={() => prefetchTrack(track)}
                                 onFocus={() => prefetchTrack(track)}
                                 aria-label={isPlaying ? `Остановить: ${displayTitle}` : `Воспроизвести: ${displayTitle}`}
-                                className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 shadow-lg active:scale-95 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                                className={`grid place-items-center shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full cursor-pointer transition-all duration-300 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 ${
                                     isPlaying
-                                        ? 'bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-indigo-500/30'
-                                        : 'bg-zinc-900 text-zinc-300 hover:bg-indigo-600 hover:text-white border border-zinc-800 hover:border-indigo-500'
+                                        ? 'bg-pink-300 text-zinc-950 shadow-[0_6px_22px_-6px_rgba(255,159,214,0.85)]'
+                                        : 'bg-white/10 text-white hover:bg-pink-300 hover:text-zinc-950'
                                 }`}
                             >
                                 {isPlaying ? (
-                                    <span className="text-[10px] sm:text-xs font-bold tracking-widest">❚❚</span>
+                                    <PauseIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                                 ) : (
-                                    <span className="text-[10px] sm:text-xs translate-x-[1px]">▶</span>
+                                    <PlayIcon className="w-4 h-4 sm:w-5 sm:h-5 translate-x-px" />
                                 )}
                             </button>
 
-                            {/* Обложка: тоже кликабельна, удобно тапать пальцем */}
+                            {/* Обложка: тонкий розовый ободок, чтобы чёрные обложки не сливались с фоном */}
                             <div
                                 onClick={() => togglePlay(track)}
-                                className="w-12 h-12 sm:w-20 sm:h-20 rounded-lg sm:rounded-xl overflow-hidden shrink-0 bg-zinc-900 flex items-center justify-center shadow-md relative cursor-pointer"
+                                className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 bg-pink-300/[0.06] ring-1 ring-pink-200/15 flex items-center justify-center shadow-md relative cursor-pointer"
                             >
                                 {coverSrc ? (
                                     <img
@@ -234,19 +228,19 @@ export const TrackList = ({
                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         onError={(e) => {
                                             const img = e.currentTarget
-                                            img.onerror = null // защита от бесконечного цикла, если заглушки нет
+                                            img.onerror = null
                                             img.src = '/default-cover.png'
                                         }}
                                     />
                                 ) : (
-                                    <span className="text-zinc-600 text-lg sm:text-xl">🎵</span>
+                                    <span className="text-pink-200/60 text-lg sm:text-xl">🎵</span>
                                 )}
                                 {isPlaying && (
-                                    <div className="absolute inset-0 bg-indigo-950/20 backdrop-blur-[2px] flex items-center justify-center">
+                                    <div className="absolute inset-0 bg-pink-950/35 backdrop-blur-[2px] flex items-center justify-center">
                                         <div className="flex items-end gap-0.5 h-3 sm:h-4">
-                                            <span className="w-1 bg-indigo-400 animate-bounce h-full rounded-full" />
-                                            <span className="w-1 bg-indigo-400 animate-bounce h-2/3 rounded-full [animation-delay:0.2s]" />
-                                            <span className="w-1 bg-indigo-400 animate-bounce h-4/5 rounded-full [animation-delay:0.4s]" />
+                                            <span className="w-1 bg-pink-300 animate-bounce h-full rounded-full" />
+                                            <span className="w-1 bg-pink-300 animate-bounce h-2/3 rounded-full [animation-delay:0.2s]" />
+                                            <span className="w-1 bg-pink-300 animate-bounce h-4/5 rounded-full [animation-delay:0.4s]" />
                                         </div>
                                     </div>
                                 )}
@@ -256,9 +250,9 @@ export const TrackList = ({
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <span
                                     onClick={() => enableActions && setSelectedTrackId(track._id)}
-                                    className={`text-sm sm:text-lg font-semibold truncate transition-colors block ${
-                                        enableActions ? 'cursor-pointer hover:text-indigo-400' : ''
-                                    } ${isPlaying ? 'text-indigo-400 font-bold' : 'text-zinc-100 group-hover:text-white'}`}
+                                    className={`text-sm sm:text-lg font-bold truncate transition-colors block ${
+                                        enableActions ? 'cursor-pointer hover:text-pink-300' : ''
+                                    } ${isPlaying ? 'text-pink-300' : 'text-zinc-100 group-hover:text-white'}`}
                                     title={enableActions ? 'Нажмите для редактирования' : displayTitle}
                                 >
                                     {displayTitle}
@@ -277,21 +271,19 @@ export const TrackList = ({
                                 )}
                             </div>
 
-                            {/* Лайк */}
-                            <div className="shrink-0">
-                                <TrackLikeButton trackId={track._id} />
-                            </div>
+                            {/* Лайк (с лепестками) */}
+                            <TrackLikeButton trackId={track._id} />
 
-                            {/* Играть следующим (на телефоне скрыто, чтобы не перегружать карточку) */}
+                            {/* Играть следующим (на телефоне скрыто) */}
                             <button
                                 type="button"
                                 onClick={() => handlePlayNext(track)}
                                 title="Играть следующим"
                                 aria-label={`Играть следующим: ${displayTitle}`}
-                                className="hidden sm:flex w-10 h-10 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-indigo-400 items-center justify-center border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                                className="icon-btn hidden sm:grid"
                             >
                                 {queuedId === track._id ? (
-                                    <span className="text-emerald-400 text-sm font-bold">✓</span>
+                                    <span className="text-pink-300 text-sm font-bold">✓</span>
                                 ) : (
                                     <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7m6-4v6m-3-3h6" />
@@ -305,9 +297,11 @@ export const TrackList = ({
                                 onClick={() => setPlaylistTrackId(track._id)}
                                 title="Добавить в плейлист"
                                 aria-label={`Добавить в плейлист: ${displayTitle}`}
-                                className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-indigo-400 flex items-center justify-center text-sm sm:text-base border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                                className="icon-btn grid"
                             >
-                                ➕
+                                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                                </svg>
                             </button>
                         </div>
                     )
@@ -318,7 +312,7 @@ export const TrackList = ({
 
                 {isFetchingMore && (
                     <div className="flex justify-center py-3 shrink-0">
-                        <span className="w-5 h-5 rounded-full border-2 border-white/20 border-t-indigo-400 animate-spin" />
+                        <span className="w-5 h-5 rounded-full border-2 border-white/20 border-t-pink-300 animate-spin" />
                     </div>
                 )}
             </div>

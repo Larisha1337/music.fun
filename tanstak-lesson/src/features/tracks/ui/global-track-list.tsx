@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { TrackList, type Track } from './track-list'
 import { TrackSearch } from '@/shared/tracks/ui/track-search.tsx'
 import { useDebounce } from '@/shared/ui/lib/debounce/useDebounce.ts'
@@ -12,9 +12,32 @@ const SORT_OPTIONS: { value: TrackSort; label: string }[] = [
     { value: 'key', label: 'По тональности' },
 ]
 
-const selectClass =
-    'px-3 py-2 rounded-xl text-sm bg-zinc-950/60 border border-zinc-800 text-zinc-200 outline-none cursor-pointer ' +
-    'focus:border-indigo-500/50 transition-colors [&>option]:bg-zinc-900'
+
+const SoftSelect = ({
+                        value,
+                        onChange,
+                        label,
+                        children,
+                    }: {
+    value: string
+    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
+    label: string
+    children: React.ReactNode
+}) => (
+    <div className="relative">
+        <select
+            value={value}
+            onChange={onChange}
+            aria-label={label}
+            className="appearance-none cursor-pointer rounded-full border border-pink-200/15 bg-white/[0.05] py-2 pl-4 pr-9 text-sm font-medium text-zinc-100 outline-none transition-colors hover:border-pink-300/40 focus:border-pink-300/70 [&>option]:bg-zinc-900"
+        >
+            {children}
+        </select>
+        <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pink-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+        </svg>
+    </div>
+)
 
 export const GlobalTrackList = () => {
     const [searchQuery, setSearchQuery] = useState('')
@@ -66,28 +89,18 @@ export const GlobalTrackList = () => {
 
             {facets?.hasAnalysis && (
                 <div className="flex flex-wrap items-center gap-2 max-w-4xl mx-auto w-full -mt-1">
-                    <select
-                        value={sortMode}
-                        onChange={(e) => setSortMode(e.target.value as TrackSort)}
-                        aria-label="Сортировка"
-                        className={selectClass}
-                    >
+                    <SoftSelect value={sortMode} onChange={(e) => setSortMode(e.target.value as TrackSort)} label="Сортировка">
                         {SORT_OPTIONS.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
-                    </select>
+                    </SoftSelect>
 
-                    <select
-                        value={keyFilter}
-                        onChange={(e) => setKeyFilter(e.target.value)}
-                        aria-label="Фильтр по тональности"
-                        className={selectClass}
-                    >
+                    <SoftSelect value={keyFilter} onChange={(e) => setKeyFilter(e.target.value)} label="Фильтр по тональности">
                         <option value="">Любая тональность</option>
                         {availableKeys.map((k) => (
                             <option key={k} value={k}>{k} ({toCamelot(k) ?? '?'})</option>
                         ))}
-                    </select>
+                    </SoftSelect>
 
                     {isFiltered && !isPending && (
                         <span className="text-xs text-zinc-500 ml-auto">Найдено: {total}</span>

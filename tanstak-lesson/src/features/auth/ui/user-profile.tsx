@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAvatarQuery } from "../../avatar/api/use-avatar-query.ts";
 import { useUploadAvatarMutation } from "../../avatar/api/use-upload-avatar-mutation.ts";
 import { useUpdateProfileMutation } from "@/features/auth/api/use-update-profile-mutation.ts";
 import { LogoutButton } from "@/features/auth/ui/button/logout-button.tsx";
-import { useGlow, subscribeBeat } from "@/shared/ui/lib/track-glow.ts";
+import { BloomPetals, useBloom } from "@/shared/ui/sakura-bloom.tsx";
 
 type Props = {
     user: {
@@ -29,16 +29,16 @@ const PencilIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-/* Иконка отдельного лепестка сакуры для анимации */
-const SakuraPetal = ({ className, style }: { className?: string, style?: CSSProperties }) => (
-    <svg className={className} style={style} viewBox="0 0 50 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M25 0C25.9676 2.1466 27.2763 3.99281 28.7188 5.67204C33.8821 11.6917 40.5898 15.6881 46.107 22.0645C51.2704 28.0842 51.1091 36.3155 46.2683 41.6917C41.4275 47.068 31.8687 48.7473 25 48.7473C18.1313 48.7473 8.57248 47.068 3.73166 41.6917C-1.10915 36.3155 -1.27043 28.0842 3.89299 22.0645C9.41018 15.6881 16.1179 11.6917 21.2812 5.67204C22.7237 3.99281 24.0324 2.1466 25 0Z" fill="currentColor" />
-    </svg>
-);
+// Рамка и свечение читают --bloom, который useBloom обновляет на плашке (без перерисовок React)
+const pillStyle: CSSProperties = {
+    borderColor: 'rgba(255, 159, 214, calc(0.12 + var(--bloom, 0.22) * 0.3))',
+    boxShadow: '0 0 30px -10px rgba(249, 92, 158, calc(0.18 + var(--bloom, 0.22) * 0.5))',
+};
 
-/* Фиксированный сакуровый градиент для кольца и RGB для мягкого свечения */
-const SAKURA_RING = 'linear-gradient(90deg, #ffe0f1, #ffb7d5, #f95c9e, #ffe0f1)';
-const SAKURA_RGB = '249, 92, 158'; // Брендовый розовый
+const ringStyle: CSSProperties = {
+    backgroundImage: 'conic-gradient(from 200deg, #ffe0f1, #ffb7d5, #f95c9e, #ffb7d5, #ffe0f1)',
+    boxShadow: '0 0 calc(6px + var(--bloom, 0.22) * 14px) rgba(255, 159, 214, calc(0.25 + var(--bloom, 0.22) * 0.4))',
+};
 
 export const UserProfile = ({ user }: Props) => {
     const displayName = user.name || user.username || user.email || "User";
@@ -52,39 +52,11 @@ export const UserProfile = ({ user }: Props) => {
     const { mutate: updateProfile, isPending: isUpdatingName } = useUpdateProfileMutation();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const ringRef = useRef<HTMLSpanElement>(null);
+    const pillRef = useRef<HTMLDivElement>(null);
+    const layerRef = useRef<HTMLSpanElement>(null);
 
-    const glow = useGlow();
-
-    // Бегущий мягкий блик по сакуровому кольцу (Web Animations API)
-    useEffect(() => {
-        const el = ringRef.current;
-        if (!el || typeof el.animate !== 'function') return;
-
-        const shine = el.animate(
-            [{ backgroundPosition: '0% 50%' }, { backgroundPosition: '200% 50%' }],
-            { duration: 3500, iterations: Infinity, easing: 'linear' }
-        );
-        return () => shine.cancel();
-    }, []);
-
-    // Нежный сакуровый ореол вокруг аватара и плашки
-    const ringStyle: CSSProperties = {
-        backgroundImage: SAKURA_RING,
-        backgroundSize: '200% 100%',
-        boxShadow: glow.playing
-            ? `0 0 25px 4px rgba(${SAKURA_RGB}, 0.55)`
-            : `0 0 14px 2px rgba(255, 183, 213, 0.25)`,
-        transition: 'box-shadow 0.6s ease-in-out',
-    };
-
-    const pillStyle: CSSProperties = {
-        borderColor: `rgba(${SAKURA_RGB}, 0.25)`,
-        boxShadow: glow.playing
-            ? `0 0 35px -8px rgba(${SAKURA_RGB}, 0.45)`
-            : `0 0 20px -8px rgba(${SAKURA_RGB}, 0.15)`,
-        transition: 'all 0.6s ease-in-out',
-    };
+    // Цветок раскрывается под музыку, лепестки отлетают на ударах
+    useBloom(pillRef, layerRef);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -120,14 +92,6 @@ export const UserProfile = ({ user }: Props) => {
         }
     };
 
-    // Параметры для парящих лепестков вокруг аватара
-    const petals = [
-        { size: 'w-2.5 h-3', pos: 'top-[-8px] left-[-8px]', delay: '0s' },
-        { size: 'w-2 h-2.5', pos: 'top-[-10px] right-[-2px]', delay: '1s' },
-        { size: 'w-3 h-3.5', pos: 'bottom-[-6px] left-[-2px]', delay: '2s' },
-        { size: 'w-2 h-2.5', pos: 'bottom-[-4px] right-[-8px]', delay: '3s' },
-    ];
-
     return (
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             <input
@@ -138,48 +102,23 @@ export const UserProfile = ({ user }: Props) => {
                 className="hidden"
             />
 
-            {/* Стеклянная плашка профиля с сакуровым обрамлением */}
+            {/* Плашка профиля */}
             <div
+                ref={pillRef}
                 style={pillStyle}
-                className="group flex items-center gap-2 sm:gap-3 min-w-0 pl-1 sm:pl-1.5 pr-2 sm:pr-3.5 py-1 sm:py-1.5 rounded-full bg-white/[0.04] border backdrop-blur-md transition-all duration-700 hover:bg-white/[0.07]"
+                className="relative flex items-center gap-2.5 sm:gap-3 min-w-0 pl-1.5 sm:pl-2 pr-2.5 sm:pr-4 py-1 sm:py-1.5 rounded-full bg-white/[0.04] border backdrop-blur-md transition-colors duration-300 hover:bg-white/[0.07]"
             >
-                {/* Узор из лепестков сакуры внутри фона плашки */}
-                <span className="pointer-events-none absolute inset-0 rounded-full overflow-hidden opacity-5" aria-hidden="true">
-                    {[...Array(6)].map((_, i) => (
-                        <SakuraPetal
-                            key={i}
-                            className="absolute text-pink-300"
-                            style={{
-                                width: `${Math.random() * 8 + 8}px`,
-                                top: `${Math.random() * 80 + 10}%`,
-                                left: `${Math.random() * 80 + 10}%`,
-                                transform: `rotate(${Math.random() * 360}deg)`,
-                            }}
-                        />
-                    ))}
-                </span>
-
-                {/* Аватар в сакуровом кольце с парящими лепестками */}
+                {/* Аватар: цветок сакуры позади, кольцо мягкого розового */}
                 <button
                     type="button"
                     onClick={handleAvatarClick}
                     title="Изменить аватар"
                     aria-label="Изменить аватар"
-                    className="relative shrink-0 rounded-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300"
+                    className="relative group shrink-0 rounded-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300"
                 >
-                    {/* Парящие, пульсирующие лепестки вокруг аватара (ФОРМА, НЕ ЦВЕТ) */}
-                    {petals.map((petal, i) => (
-                        <SakuraPetal
-                            key={i}
-                            className={`pointer-events-none absolute text-pink-300/60 ${petal.size} ${petal.pos} 
-                                       animate-sakura-pulse transition-shadow duration-300
-                                       ${glow.playing ? 'animate-sakura-pulse-fast' : ''}`}
-                            style={{ animationDelay: petal.delay }}
-                        />
-                    ))}
+                    <BloomPetals />
 
                     <span
-                        ref={ringRef}
                         style={ringStyle}
                         className="relative block p-[2px] rounded-full transition-transform duration-300 group-hover:scale-105 group-active:scale-95"
                     >
@@ -191,7 +130,7 @@ export const UserProfile = ({ user }: Props) => {
                                     className="w-full h-full object-cover"
                                 />
                             ) : (
-                                <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/30 to-fuchsia-500/20 text-pink-200 text-sm font-bold">
+                                <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/30 to-pink-300/20 text-pink-200 text-sm font-bold">
                                     {initial}
                                 </span>
                             )}
@@ -210,7 +149,10 @@ export const UserProfile = ({ user }: Props) => {
                         </span>
                     </span>
 
-                    {/* Точка «онлайн» в брендовом розовом Anivox */}
+                    {/* Слой для падающих лепестков (поверх всего) */}
+                    <span ref={layerRef} aria-hidden="true" className="pointer-events-none absolute inset-0" />
+
+                    {/* Точка «онлайн» */}
                     <span className="absolute bottom-0 right-0 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-pink-500 ring-2 ring-zinc-950 shadow-[0_0_8px_rgba(249,92,158,0.9)]" />
                 </button>
 
@@ -256,12 +198,7 @@ export const UserProfile = ({ user }: Props) => {
                             title="Мои треки"
                             className="group/name flex flex-col min-w-0 leading-tight"
                         >
-                            <span
-                                className="font-semibold text-xs sm:text-sm tracking-wide truncate
-                                           max-w-[64px] min-[400px]:max-w-[90px] sm:max-w-[120px] lg:max-w-[160px]
-                                           text-zinc-200 transition-all duration-300
-                                           group-hover/name:text-pink-300"
-                            >
+                            <span className="font-semibold text-xs sm:text-sm tracking-wide truncate max-w-[64px] min-[400px]:max-w-[90px] sm:max-w-[120px] lg:max-w-[160px] text-zinc-200 transition-colors duration-300 group-hover/name:text-pink-300">
                                 {displayName}
                             </span>
                             <span className="text-[9px] sm:text-[10px] text-zinc-400 group-hover/name:text-pink-300/80 transition-colors">

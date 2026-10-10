@@ -5,6 +5,7 @@ import { useRecommendedTracksQuery, type DiscoverTrack } from '../api/discover.t
 import { useInfiniteTracksQuery } from '../api/use-infinite-tracks-query.ts'
 import { TrackLikeButton } from './button/tracks-likes-button.tsx'
 import { TrackBadges } from './track-badges.tsx'
+import { PlayIcon, PauseIcon } from '@/shared/ui/icons/player-icons'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
@@ -89,7 +90,8 @@ export const Hero = () => {
 
                     <div className="flex items-center gap-2.5 mt-1">
                         <button type="button" onClick={() => playTrack(queue[current]!, queue)} className="btn-accent">
-                            {isCurrent ? '❚❚ Играет' : '▶ Слушать'}
+                            {isCurrent ? <PauseIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
+                            {isCurrent ? 'Играет' : 'Слушать'}
                         </button>
                         {user && <TrackLikeButton trackId={track._id} />}
                     </div>
@@ -99,7 +101,7 @@ export const Hero = () => {
                     <img
                         src={cover}
                         alt={track.title}
-                        className="hidden sm:block h-40 w-40 lg:h-52 lg:w-52 shrink-0 rounded-2xl object-cover shadow-2xl rotate-3"
+                        className="hidden sm:block h-40 w-40 lg:h-52 lg:w-52 shrink-0 rounded-2xl object-cover shadow-2xl rotate-3 ring-1 ring-pink-200/20"
                     />
                 )}
             </div>
