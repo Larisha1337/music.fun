@@ -194,7 +194,7 @@ export const TrackList = ({
                             key={track._id}
                             className={`group relative flex items-center gap-2.5 sm:gap-4 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl transition-all duration-300 border backdrop-blur-xl ${
                                 isPlaying
-                                    ? 'bg-zinc-900/90 border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)] translate-y-[-1px]'
+                                    ? 'bg-zinc-900/90 border-indigo-500/50 shadow-[0_0_30px_rgba(249, 92, 158,0.15)] translate-y-[-1px]'
                                     : 'bg-zinc-950/60 border-zinc-900 hover:border-zinc-700/60 hover:bg-zinc-900/50 [@media(hover:hover)]:hover:-translate-y-0.5 shadow-lg'
                             }`}
                         >

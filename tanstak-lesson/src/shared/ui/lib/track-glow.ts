@@ -63,7 +63,7 @@ const parseColor = (input: string): [number, number, number] => {
             parseInt(hex.slice(4, 6), 16),
         ]
     }
-    return [99, 102, 241]
+    return [249, 92, 158]
 }
 
 const rgbToHsl = ([r, g, b]: [number, number, number]): [number, number, number] => {

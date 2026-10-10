@@ -75,7 +75,7 @@ export const TrackSearch = ({
                 enterKeyHint="search"
                 aria-label="Поиск треков"
                 style={inputStyle}
-                className="w-full py-3 bg-zinc-950/60 backdrop-blur-xl border border-zinc-900 focus:border-indigo-500/50 rounded-2xl text-zinc-100 placeholder-zinc-500 text-base outline-none appearance-none transition-all shadow-lg focus:shadow-[0_0_20px_rgba(99,102,241,0.15)] [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+                className="w-full py-3 bg-zinc-950/60 backdrop-blur-xl border border-zinc-900 focus:border-indigo-500/50 rounded-2xl text-zinc-100 placeholder-zinc-500 text-base outline-none appearance-none transition-all shadow-lg focus:shadow-[0_0_20px_rgba(249, 92, 158,0.15)] [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
             />
 
             {value ? (

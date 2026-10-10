@@ -4,7 +4,7 @@ import { useAvatarQuery } from "../../avatar/api/use-avatar-query.ts";
 import { useUploadAvatarMutation } from "../../avatar/api/use-upload-avatar-mutation.ts";
 import { useUpdateProfileMutation } from "@/features/auth/api/use-update-profile-mutation.ts";
 import { LogoutButton } from "@/features/auth/ui/button/logout-button.tsx";
-import { useGlow, glowShadow, subscribeBeat } from "@/shared/ui/lib/track-glow.ts";
+import { useGlow, subscribeBeat } from "@/shared/ui/lib/track-glow.ts";
 
 type Props = {
     user: {
@@ -29,7 +29,16 @@ const PencilIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-const DEFAULT_RING = 'linear-gradient(90deg, #818cf8, #c084fc, #f472b6, #818cf8)';
+/* Иконка отдельного лепестка сакуры для анимации */
+const SakuraPetal = ({ className, style }: { className?: string, style?: CSSProperties }) => (
+    <svg className={className} style={style} viewBox="0 0 50 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M25 0C25.9676 2.1466 27.2763 3.99281 28.7188 5.67204C33.8821 11.6917 40.5898 15.6881 46.107 22.0645C51.2704 28.0842 51.1091 36.3155 46.2683 41.6917C41.4275 47.068 31.8687 48.7473 25 48.7473C18.1313 48.7473 8.57248 47.068 3.73166 41.6917C-1.10915 36.3155 -1.27043 28.0842 3.89299 22.0645C9.41018 15.6881 16.1179 11.6917 21.2812 5.67204C22.7237 3.99281 24.0324 2.1466 25 0Z" fill="currentColor" />
+    </svg>
+);
+
+/* Фиксированный сакуровый градиент для кольца и RGB для мягкого свечения */
+const SAKURA_RING = 'linear-gradient(90deg, #ffe0f1, #ffb7d5, #f95c9e, #ffe0f1)';
+const SAKURA_RGB = '249, 92, 158'; // Брендовый розовый
 
 export const UserProfile = ({ user }: Props) => {
     const displayName = user.name || user.username || user.email || "User";
@@ -44,72 +53,38 @@ export const UserProfile = ({ user }: Props) => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const ringRef = useRef<HTMLSpanElement>(null);
-    const haloRef = useRef<HTMLSpanElement>(null);
 
-    // Цвет и состояние играющего трека (приходят из плеера)
     const glow = useGlow();
 
-    // Бегущий блик по кольцу (Web Animations API: работает без CSS-файлов)
+    // Бегущий мягкий блик по сакуровому кольцу (Web Animations API)
     useEffect(() => {
         const el = ringRef.current;
         if (!el || typeof el.animate !== 'function') return;
 
         const shine = el.animate(
             [{ backgroundPosition: '0% 50%' }, { backgroundPosition: '200% 50%' }],
-            { duration: 2500, iterations: Infinity }
+            { duration: 3500, iterations: Infinity, easing: 'linear' }
         );
         return () => shine.cancel();
     }, []);
 
-    // Ореол бьётся в такт музыке (60 раз в секунду, напрямую в DOM, без перерисовок React)
-    useEffect(() => {
-        const halo = haloRef.current;
-        if (!halo) return;
-
-        if (!glow.rgb || !glow.playing || !glow.reactive) {
-            halo.style.boxShadow = 'none';
-            return;
-        }
-
-        const rgb = glow.rgb;
-        const off = subscribeBeat((level) => {
-            halo.style.boxShadow =
-                `0 0 ${12 + level * 30}px ${2 + level * 10}px rgba(${rgb}, ${0.3 + level * 0.55})`;
-        });
-
-        return () => {
-            off();
-            halo.style.boxShadow = 'none';
-        };
-    }, [glow.rgb, glow.playing, glow.reactive]);
-
-    // Запасной вариант: если звук прочитать нельзя, свечение просто «дышит»
-    useEffect(() => {
-        const el = ringRef.current;
-        if (!el || !glow.rgb || !glow.playing || glow.reactive || typeof el.animate !== 'function') return;
-
-        const pulse = el.animate(
-            [{ boxShadow: glowShadow(glow.rgb, 'low') }, { boxShadow: glowShadow(glow.rgb, 'high') }],
-            { duration: 1200, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' }
-        );
-        return () => pulse.cancel();
-    }, [glow.rgb, glow.playing, glow.reactive]);
-
+    // Нежный сакуровый ореол вокруг аватара и плашки
     const ringStyle: CSSProperties = {
-        backgroundImage: glow.rgb
-            ? `linear-gradient(90deg, rgb(${glow.rgb}), rgba(255,255,255,0.9), rgb(${glow.rgb}))`
-            : DEFAULT_RING,
+        backgroundImage: SAKURA_RING,
         backgroundSize: '200% 100%',
-        boxShadow: glow.rgb ? glowShadow(glow.rgb, 'low') : '0 0 14px rgba(167,139,250,0.35)',
-        transition: 'box-shadow 0.6s ease',
+        boxShadow: glow.playing
+            ? `0 0 25px 4px rgba(${SAKURA_RGB}, 0.55)`
+            : `0 0 14px 2px rgba(255, 183, 213, 0.25)`,
+        transition: 'box-shadow 0.6s ease-in-out',
     };
 
-    const pillStyle: CSSProperties | undefined = glow.rgb
-        ? {
-            borderColor: `rgba(${glow.rgb}, 0.4)`,
-            boxShadow: `0 0 30px -8px rgba(${glow.rgb}, 0.65)`,
-        }
-        : undefined;
+    const pillStyle: CSSProperties = {
+        borderColor: `rgba(${SAKURA_RGB}, 0.25)`,
+        boxShadow: glow.playing
+            ? `0 0 35px -8px rgba(${SAKURA_RGB}, 0.45)`
+            : `0 0 20px -8px rgba(${SAKURA_RGB}, 0.15)`,
+        transition: 'all 0.6s ease-in-out',
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -145,6 +120,14 @@ export const UserProfile = ({ user }: Props) => {
         }
     };
 
+    // Параметры для парящих лепестков вокруг аватара
+    const petals = [
+        { size: 'w-2.5 h-3', pos: 'top-[-8px] left-[-8px]', delay: '0s' },
+        { size: 'w-2 h-2.5', pos: 'top-[-10px] right-[-2px]', delay: '1s' },
+        { size: 'w-3 h-3.5', pos: 'bottom-[-6px] left-[-2px]', delay: '2s' },
+        { size: 'w-2 h-2.5', pos: 'bottom-[-4px] right-[-8px]', delay: '3s' },
+    ];
+
     return (
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             <input
@@ -155,24 +138,46 @@ export const UserProfile = ({ user }: Props) => {
                 className="hidden"
             />
 
-            {/* Стеклянная плашка профиля */}
+            {/* Стеклянная плашка профиля с сакуровым обрамлением */}
             <div
                 style={pillStyle}
-                className="flex items-center gap-2 sm:gap-3 min-w-0 pl-1 sm:pl-1.5 pr-2 sm:pr-3.5 py-1 sm:py-1.5 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-md transition-all duration-700 hover:bg-white/[0.06]"
+                className="group flex items-center gap-2 sm:gap-3 min-w-0 pl-1 sm:pl-1.5 pr-2 sm:pr-3.5 py-1 sm:py-1.5 rounded-full bg-white/[0.04] border backdrop-blur-md transition-all duration-700 hover:bg-white/[0.07]"
             >
-                {/* Аватар: кольцо и ореол берут цвет трека, ореол бьётся в такт */}
+                {/* Узор из лепестков сакуры внутри фона плашки */}
+                <span className="pointer-events-none absolute inset-0 rounded-full overflow-hidden opacity-5" aria-hidden="true">
+                    {[...Array(6)].map((_, i) => (
+                        <SakuraPetal
+                            key={i}
+                            className="absolute text-pink-300"
+                            style={{
+                                width: `${Math.random() * 8 + 8}px`,
+                                top: `${Math.random() * 80 + 10}%`,
+                                left: `${Math.random() * 80 + 10}%`,
+                                transform: `rotate(${Math.random() * 360}deg)`,
+                            }}
+                        />
+                    ))}
+                </span>
+
+                {/* Аватар в сакуровом кольце с парящими лепестками */}
                 <button
                     type="button"
                     onClick={handleAvatarClick}
                     title="Изменить аватар"
                     aria-label="Изменить аватар"
-                    className="relative group shrink-0 rounded-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    className="relative shrink-0 rounded-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300"
                 >
-                    <span
-                        ref={haloRef}
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 rounded-full"
-                    />
+                    {/* Парящие, пульсирующие лепестки вокруг аватара (ФОРМА, НЕ ЦВЕТ) */}
+                    {petals.map((petal, i) => (
+                        <SakuraPetal
+                            key={i}
+                            className={`pointer-events-none absolute text-pink-300/60 ${petal.size} ${petal.pos} 
+                                       animate-sakura-pulse transition-shadow duration-300
+                                       ${glow.playing ? 'animate-sakura-pulse-fast' : ''}`}
+                            style={{ animationDelay: petal.delay }}
+                        />
+                    ))}
+
                     <span
                         ref={ringRef}
                         style={ringStyle}
@@ -186,7 +191,7 @@ export const UserProfile = ({ user }: Props) => {
                                     className="w-full h-full object-cover"
                                 />
                             ) : (
-                                <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500/30 to-fuchsia-500/20 text-indigo-200 text-sm font-bold">
+                                <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/30 to-fuchsia-500/20 text-pink-200 text-sm font-bold">
                                     {initial}
                                 </span>
                             )}
@@ -205,11 +210,11 @@ export const UserProfile = ({ user }: Props) => {
                         </span>
                     </span>
 
-                    {/* Индикатор «онлайн» */}
-                    <span className="absolute bottom-0 right-0 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-400 ring-2 ring-zinc-950 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                    {/* Точка «онлайн» в брендовом розовом Anivox */}
+                    <span className="absolute bottom-0 right-0 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-pink-500 ring-2 ring-zinc-950 shadow-[0_0_8px_rgba(249,92,158,0.9)]" />
                 </button>
 
-                {/* Имя или поле ввода */}
+                {/* Имя профиля */}
                 {isEditingName ? (
                     <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                         <input
@@ -220,14 +225,14 @@ export const UserProfile = ({ user }: Props) => {
                             autoFocus
                             disabled={isUpdatingName}
                             maxLength={32}
-                            className="w-20 sm:w-32 min-w-0 px-2 sm:px-2.5 py-1 text-xs bg-zinc-900/80 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-60"
+                            className="w-20 sm:w-32 min-w-0 px-2 sm:px-2.5 py-1 text-xs bg-zinc-900/80 border border-pink-500/40 rounded-lg text-white focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-500/30 disabled:opacity-60"
                         />
                         <button
                             type="button"
                             onClick={() => handleSaveName()}
                             disabled={isUpdatingName}
                             aria-label="Сохранить имя"
-                            className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md text-xs text-emerald-400 hover:bg-emerald-500/15 font-semibold cursor-pointer transition-colors disabled:opacity-50"
+                            className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md text-xs text-pink-300 hover:bg-pink-500/15 font-semibold cursor-pointer transition-colors disabled:opacity-50"
                         >
                             ✓
                         </button>
@@ -254,13 +259,12 @@ export const UserProfile = ({ user }: Props) => {
                             <span
                                 className="font-semibold text-xs sm:text-sm tracking-wide truncate
                                            max-w-[64px] min-[400px]:max-w-[90px] sm:max-w-[120px] lg:max-w-[160px]
-                                           bg-clip-text bg-[linear-gradient(90deg,#e4e4e7,#e4e4e7)] text-transparent transition-all duration-300
-                                           group-hover/name:bg-[linear-gradient(90deg,#818cf8,#c084fc,#f472b6,#818cf8)]
-                                           group-hover/name:bg-[length:200%_100%] group-hover/name:animate-nav-shine"
+                                           text-zinc-200 transition-all duration-300
+                                           group-hover/name:text-pink-300"
                             >
                                 {displayName}
                             </span>
-                            <span className="text-[9px] sm:text-[10px] text-zinc-500 group-hover/name:text-zinc-400 transition-colors">
+                            <span className="text-[9px] sm:text-[10px] text-zinc-400 group-hover/name:text-pink-300/80 transition-colors">
                                 Мои треки
                             </span>
                         </Link>
@@ -272,7 +276,7 @@ export const UserProfile = ({ user }: Props) => {
                             }}
                             title="Изменить имя"
                             aria-label="Изменить имя"
-                            className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 flex items-center justify-center rounded-md text-zinc-500 hover:text-indigo-300 hover:bg-white/10 transition-colors cursor-pointer"
+                            className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 flex items-center justify-center rounded-md text-zinc-400 hover:text-pink-300 hover:bg-white/10 transition-colors cursor-pointer"
                         >
                             <PencilIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         </button>

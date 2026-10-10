@@ -16,6 +16,6 @@
     }
 
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: rgba(99, 102, 241, 0.6); /* Индиго-акцент при наведении */
+        background: rgba(249, 92, 158, 0.6); /* Индиго-акцент при наведении */
     }
 }

@@ -11,6 +11,7 @@ type Props = {
     onSleepMinutes: (minutes: number) => void
     onSleepEndOfTrack: () => void
     onOpenQueue?: () => void
+    onOpenTrim?: () => void
 }
 
 const RATES = [0.75, 1, 1.25, 1.5, 2]
@@ -58,6 +59,7 @@ export const PlayerSettingsMenu = ({
                                        onSleepMinutes,
                                        onSleepEndOfTrack,
                                        onOpenQueue,
+                                       onOpenTrim,
                                    }: Props) => {
     const [open, setOpen] = useState(false)
     const buttonRef = useRef<HTMLButtonElement>(null)
@@ -128,6 +130,20 @@ export const PlayerSettingsMenu = ({
                                 className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-semibold cursor-pointer transition-colors"
                             >
                                 <span>Очередь воспроизведения</span>
+                                <span aria-hidden="true">›</span>
+                            </button>
+                        )}
+
+                        {onOpenTrim && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setOpen(false)
+                                    onOpenTrim()
+                                }}
+                                className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-semibold cursor-pointer transition-colors"
+                            >
+                                <span>✂ Обрезать трек</span>
                                 <span aria-hidden="true">›</span>
                             </button>
                         )}

@@ -100,7 +100,7 @@ const iconClass =
     'absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-zinc-500 pointer-events-none'
 
 const gradientStyle: CSSProperties = {
-    backgroundImage: 'linear-gradient(90deg, #4f46e5, #7c3aed, #c026d3)',
+    backgroundImage: 'linear-gradient(90deg, #f95c9e, #e0407f)',
     color: '#fff',
 }
 
@@ -201,7 +201,7 @@ export const LoginModal = ({ onClose }: Props) => {
                 }}
             >
                 {/* Карточка с градиентной рамкой */}
-                <div className="relative w-full max-w-md animate-modal-in rounded-3xl p-px bg-gradient-to-br from-indigo-500/60 via-white/10 to-fuchsia-500/60 shadow-[0_30px_80px_-10px_rgba(99,102,241,0.35)]">
+                <div className="relative w-full max-w-md animate-modal-in rounded-3xl p-px bg-gradient-to-br from-indigo-500/60 via-white/10 to-fuchsia-500/60 shadow-[0_30px_80px_-10px_rgba(249, 92, 158,0.35)]">
                     <div className="relative overflow-hidden rounded-[calc(1.5rem-1px)] bg-zinc-950 p-4 min-[380px]:p-5 sm:p-8 [@media(max-height:640px)]:p-4">
                         {/* Свечение на фоне */}
                         <div className="pointer-events-none absolute -top-24 -right-24 w-56 h-56 rounded-full bg-indigo-500/20 blur-3xl" />
@@ -232,7 +232,7 @@ export const LoginModal = ({ onClose }: Props) => {
                                 </div>
                                 <h2
                                     id="auth-modal-title"
-                                    className="px-8 sm:px-0 text-lg min-[380px]:text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-[linear-gradient(90deg,#818cf8,#c084fc,#f472b6,#818cf8)] bg-[length:200%_100%] animate-nav-shine"
+                                    className="px-8 sm:px-0 text-lg min-[380px]:text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-[linear-gradient(90deg,#ff9fd6, #f95c9e, #ffb36b, #ff9fd6)] bg-[length:200%_100%] animate-nav-shine"
                                 >
                                     {isRegister ? 'Создать аккаунт' : 'С возвращением'}
                                 </h2>

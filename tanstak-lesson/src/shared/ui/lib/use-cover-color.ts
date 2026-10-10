@@ -3,7 +3,7 @@ import { FastAverageColor } from 'fast-average-color';
 
 const fac = new FastAverageColor();
 
-export const useCoverColor = (coverSrc: string | null, defaultColor = '#6366f1') => {
+export const useCoverColor = (coverSrc: string | null, defaultColor = '#f95c9e') => {
     const [color, setColor] = useState<string>(defaultColor);
 
     useEffect(() => {

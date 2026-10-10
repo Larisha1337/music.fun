@@ -17,7 +17,7 @@ const EDGES = Array.from({ length: BARS + 1 }, (_, i) =>
     Math.max(1, Math.round(Math.pow(64, i / BARS)))
 );
 
-export const AudioVisualizer = ({ audioRef, isPlaying, color = "#6366f1" }: Props) => {
+export const AudioVisualizer = ({ audioRef, isPlaying, color = "#f95c9e" }: Props) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const graphRef = useRef<AudioGraph | null>(null);
     const levelRef = useRef(0); // сглаженный уровень удара

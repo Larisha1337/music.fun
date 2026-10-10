@@ -1,6 +1,8 @@
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
-import styles from '../../../app/layouts/root-layout.module.css'
+import styles from '../../../app/layouts/root-layout.module.css' // <- оставь свою строку как была
+import { Sakura, SakuraToggle } from '@/shared/ui/sakura.tsx'
+import { ComposeEntry } from '@/features/tracks/ui/compose/compose-modal.tsx'
 
 type Props = {
     renderAccountBar: () => ReactNode
@@ -27,53 +29,61 @@ type NavLinkProps = {
 const NavLink = ({ to, label, icon }: NavLinkProps) => (
     <Link
         to={to}
-        className="group relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm sm:text-base font-semibold tracking-wide
-                   text-zinc-400 transition-all duration-300
-                   hover:bg-white/5 hover:-translate-y-0.5 active:scale-95
-                   data-[status=active]:text-white data-[status=active]:bg-white/[0.07]"
+        aria-label={label}
+        className="group flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-sm font-semibold text-zinc-400 transition-colors
+                   hover:text-white hover:bg-white/5
+                   data-[status=active]:text-white data-[status=active]:bg-white/[0.08]"
     >
-        {/* Иконка: оживает при наведении */}
-        <span className="transition-all duration-300 group-hover:text-indigo-400 group-hover:scale-110 group-hover:-rotate-6 group-data-[status=active]:text-indigo-400">
+        <span className="text-zinc-500 transition-colors group-hover:text-pink-300 group-data-[status=active]:text-pink-300">
             {icon}
         </span>
-
-        {/* Текст: бегущий градиент при наведении и для активной страницы */}
-        <span
-            className="bg-clip-text transition-all duration-300
-               bg-[linear-gradient(90deg,#a1a1aa,#a1a1aa)]
-               group-hover:text-transparent group-hover:bg-[linear-gradient(90deg,#818cf8,#c084fc,#f472b6,#818cf8)]
-               group-hover:bg-[length:200%_100%] group-hover:animate-nav-shine
-               group-data-[status=active]:text-transparent group-data-[status=active]:bg-[linear-gradient(90deg,#818cf8,#c084fc,#f472b6,#818cf8)]
-               group-data-[status=active]:bg-[length:200%_100%] group-data-[status=active]:animate-nav-shine"
-        >
-    {label}
-</span>
-
-        {/* Подчёркивание: растёт от центра */}
-        <span
-            className="pointer-events-none absolute bottom-0.5 left-1/2 h-[2px] w-0 -translate-x-1/2 rounded-full
-                       bg-gradient-to-r from-indigo-400 via-violet-400 to-pink-400
-                       shadow-[0_0_10px_rgba(167,139,250,0.8)]
-                       transition-all duration-300 ease-out
-                       group-hover:w-3/4 group-data-[status=active]:w-3/4"
-        />
+        {/* На очень узких экранах остаются только иконки */}
+        <span className="hidden min-[420px]:inline">{label}</span>
     </Link>
 )
 
-export const Header = ({ renderAccountBar }: Props) => (
-    <header className="sticky top-0 z-50 bg-zinc-950/60 backdrop-blur-xl transition-all duration-300 relative">
-        <div className={styles.container}>
-            {/* Ссылки слева */}
-            <nav className="flex items-center gap-1 sm:gap-2">
-                <NavLink to="/all-tracks" label="Tracks" icon={<MusicIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />} />
-                <NavLink to="/playlists" label="Playlists" icon={<ListIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />} />
-            </nav>
+export const Header = ({ renderAccountBar }: Props) => {
+    // Вверху страницы шапка прозрачная, при прокрутке размывается (как у Anivox)
+    const [scrolled, setScrolled] = useState(false)
 
-            {/* Аккаунт справа */}
-            {renderAccountBar()}
-        </div>
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 8)
+        onScroll()
+        window.addEventListener('scroll', onScroll, { passive: true })
+        return () => window.removeEventListener('scroll', onScroll)
+    }, [])
 
-        {/* Светящаяся линия внизу хедера вместо обычной серой границы */}
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent" />
-    </header>
-)
+    return (
+        <header
+            className={`sticky top-0 z-50 transition-all duration-300 border-b ${
+                scrolled ? 'bg-zinc-950/75 backdrop-blur-xl border-white/5' : 'bg-transparent border-transparent'
+            }`}
+        >
+            <div className={styles.container}>
+                <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                    <Link
+                        to="/all-tracks"
+                        aria-label="На главную"
+                        className="shrink-0 grid place-items-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-pink-300 to-pink-500
+                                   shadow-[0_6px_20px_-6px_rgba(249,92,158,0.8)] transition-transform hover:scale-105 active:scale-95"
+                    >
+                        <MusicIcon className="w-5 h-5 text-white" />
+                    </Link>
+
+                    <nav className="flex items-center gap-0.5 sm:gap-1">
+                        <NavLink to="/all-tracks" label="Tracks" icon={<MusicIcon className="w-[18px] h-[18px]" />} />
+                        <NavLink to="/playlists" label="Playlists" icon={<ListIcon className="w-[18px] h-[18px]" />} />
+                    </nav>
+                </div>
+
+                <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+                    <ComposeEntry />
+                    <SakuraToggle />
+                    {renderAccountBar()}
+                </div>
+            </div>
+
+            <Sakura />
+        </header>
+    )
+}

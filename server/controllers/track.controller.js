@@ -399,9 +399,13 @@ export const deleteTrack = async (req, res) => {
             return res.status(404).json({ message: 'Трек не найден' })
         }
 
-        // deleteFromR2 сам игнорирует ссылки не из нашего хранилища, поэтому вызывать безопасно
         if (track.fileUrl) await deleteFromR2(track.fileUrl)
-        if (track.coverUrl) await deleteFromR2(track.coverUrl)
+
+        // Обложку могут делить оригинал и его обрезки: удаляем файл, только если на него больше никто не ссылается
+        if (track.coverUrl) {
+            const stillUsed = await Track.exists({ coverUrl: track.coverUrl, _id: { $ne: track._id } })
+            if (!stillUsed) await deleteFromR2(track.coverUrl)
+        }
 
         await track.deleteOne()
         res.json({ message: 'Удалено' })

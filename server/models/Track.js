@@ -11,6 +11,20 @@ const trackSchema = new mongoose.Schema({
     isStreamed: { type: Boolean, default: false },
     youtubeId: { type: String, default: null },
     deezerId: { type: String, default: null, index: true },
+    // Для копий-обрезков: из какого трека вырезано и какой отрезок
+    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Track', default: null, index: true },
+    // Для сборок из отрезков: из чего склеен трек
+    sources: {
+        type: [{
+            _id: false,
+            trackId: { type: mongoose.Schema.Types.ObjectId, ref: 'Track' },
+            start: Number,
+            end: Number,
+        }],
+        default: undefined,
+    },
+    trimStart: { type: Number, default: null },
+    trimEnd: { type: Number, default: null },
     createdAt: { type: Date, default: Date.now, index: true },
     bpm: { type: Number, default: null },
     musicalKey: { type: String, default: null },

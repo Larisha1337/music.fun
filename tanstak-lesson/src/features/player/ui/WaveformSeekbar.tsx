@@ -18,7 +18,7 @@ export const WaveformSeekbar: React.FC<WaveformSeekbarProps> = ({
                                                                     onSeek,
                                                                     barWidth = 3,
                                                                     barGap = 2,
-                                                                    activeColor = '#6366f1', // Indigo-500
+                                                                    activeColor = '#f95c9e', // Indigo-500
                                                                     inactiveColor = '#3f3f46', // Zinc-700
                                                                 }) => {
     const containerRef = useRef<HTMLDivElement>(null);

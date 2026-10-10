@@ -11,6 +11,8 @@ import { SimilarTracksPanel } from "@/features/tracks/ui/similar-tracks-panel.ts
 import { usePlayHistory } from "@/features/tracks/api/use-play-history.ts";
 import { QueuePanel } from "@/shared/ui/audio-player/queue-panel";
 import { usePreloadNext } from "@/shared/ui/lib/use-preload-next";
+import { TrimModal } from "@/features/tracks/ui/trim/trim-modal.tsx";
+import { useTrim, clearTrim } from "@/shared/ui/lib/trim-store.ts";
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || "http://localhost:5000";
 
@@ -33,6 +35,8 @@ const audioSrcFor = (track: { _id: string; fileUrl?: string | null }) =>
     isStreamedUrl(track.fileUrl)
         ? `${MY_API_BASE}/api/tracks/${track._id}/stream`
         : getMediaUrl(track.fileUrl)!;
+
+const formatClock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
 /* ---------- Обложка / вращающаяся виниловая пластинка ---------- */
 
@@ -354,7 +358,8 @@ const MemoizedCustomAudioPlayer = React.memo(
         prev.repeatMode === next.repeatMode &&
         prev.isShuffle === next.isShuffle &&
         prev.src === next.src &&
-        prev.onExpand === next.onExpand
+        prev.onExpand === next.onExpand &&
+        prev.trim === next.trim
 );
 
 export const GlobalPlayer = () => {
@@ -377,8 +382,17 @@ export const GlobalPlayer = () => {
     const { isPipOpen, isSupported, togglePip, renderPip } = usePictureInPicture();
 
     const coverSrc = getMediaUrl(currentTrack?.coverUrl);
-    const ambientColor = useCoverColor(coverSrc, "#6366f1");
+    const ambientColor = useCoverColor(coverSrc, "#f95c9e");
     const [queueOpen, setQueueOpen] = useState(false);
+    const [trimOpen, setTrimOpen] = useState(false);
+
+    const trim = useTrim();
+    const activeTrim = currentTrack && trim?.trackId === currentTrack._id ? trim : null;
+
+    // Обрезка действует только для того трека, для которого её задали
+    useEffect(() => {
+        if (trim && trim.trackId !== currentTrack?._id) clearTrim();
+    }, [trim, currentTrack?._id]);
 
     // Следующий трек очереди готовим заранее. При shuffle он выбирается случайно в момент перехода, поэтому тогда не знаем
     const nextTrack = useMemo(() => {
@@ -493,6 +507,23 @@ export const GlobalPlayer = () => {
         </button>
     );
 
+    // Кнопка обрезки (на телефоне вход есть в меню настроек плеера)
+    const trimButton = (
+        <button
+            type="button"
+            onClick={() => setTrimOpen(true)}
+            title="Обрезать трек"
+            aria-label="Обрезать трек"
+            className={`hidden sm:flex w-9 h-9 items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0 ${
+                activeTrim ? "text-indigo-300 bg-indigo-500/15" : "text-zinc-300 hover:text-white hover:bg-white/15"
+            }`}
+        >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+            </svg>
+        </button>
+    );
+
     return (
         <>
             {!isPipOpen && (
@@ -593,7 +624,21 @@ export const GlobalPlayer = () => {
                     )}
 
                     {/* Плеер (в нижней панели или внизу полноэкранного режима) */}
-                    <div className="w-full flex items-center">
+                    <div className="relative w-full flex items-center">
+                        {activeTrim && (
+                            <div className="absolute left-1/2 -translate-x-1/2 -top-7 z-10 flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-300/30 backdrop-blur-xl text-[11px] font-semibold text-indigo-100 whitespace-nowrap">
+                                <span>✂ Играет отрезок {formatClock(activeTrim.start)}–{formatClock(activeTrim.end)}</span>
+                                <button
+                                    type="button"
+                                    onClick={clearTrim}
+                                    aria-label="Играть трек целиком"
+                                    title="Играть трек целиком"
+                                    className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-white/15 cursor-pointer"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        )}
                         <MemoizedCustomAudioPlayer
                             src={audioSrc}
                             title={currentTrack.title}
@@ -615,13 +660,18 @@ export const GlobalPlayer = () => {
                             onClose={closePlayer}
                             onExpand={toggleFullscreen}
                             onOpenQueue={() => setQueueOpen(true)}
-                            extraRightControls={<>{queueButton}{pipButton}</>}
+                            trim={activeTrim}
+                            onOpenTrim={() => setTrimOpen(true)}
+                            extraRightControls={<>{queueButton}{trimButton}{pipButton}</>}
                         />
                     </div>
                 </div>
             )}
 
             <QueuePanel open={queueOpen && !isPipOpen} onClose={() => setQueueOpen(false)} />
+            {trimOpen && (
+                <TrimModal key={currentTrack._id} track={currentTrack} onClose={() => setTrimOpen(false)} />
+            )}
 
             {/* Режим Picture-in-Picture */}
             {isPipOpen &&
@@ -702,6 +752,7 @@ export const GlobalPlayer = () => {
                                 isPlaying={isPlaying}
                                 onTogglePlay={togglePlay}
                                 autoPlay
+                                trim={activeTrim}
                             />
                         </div>
                     </div>

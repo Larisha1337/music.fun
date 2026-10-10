@@ -3,10 +3,12 @@ import { AudioVisualizer } from "./audio-visualizer";
 import { WaveformBar } from "./waveform-bar";
 import { PlayerSettingsMenu } from "./player-settings-menu";
 import { useSleepTimer } from "./use-sleep-timer";
+import { useTrimPlayback } from "./use-trim-playback";
 import { PlayIcon, PauseIcon, NextIcon, PrevIcon } from "@/shared/ui/icons/player-icons";
 import { TrackLikeButton } from "@/features/tracks/ui/button/tracks-likes-button.tsx";
 import { setGlow, resetGlow, vividRgb } from "@/shared/ui/lib/track-glow.ts";
 import { useTrackPeaksQuery } from "@/shared/api/use-track-peaks-query.ts";
+
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -32,6 +34,9 @@ type Props = {
     onClose?: () => void;
     onExpand?: () => void;
     onOpenQueue?: () => void;
+    /** Играть только часть трека (обрезка «на один раз») */
+    trim?: { start: number; end: number } | null;
+    onOpenTrim?: () => void;
     extraRightControls?: React.ReactNode;
 };
 
@@ -171,7 +176,7 @@ export const CustomAudioPlayer = ({
                                       title,
                                       artist,
                                       coverSrc,
-                                      ambientColor = '#6366f1',
+                                      ambientColor = '#f95c9e',
                                       autoPlay = true,
                                       repeatMode = 'off',
                                       isShuffle = false,
@@ -186,6 +191,8 @@ export const CustomAudioPlayer = ({
                                       onClose,
                                       onExpand,
                                       onOpenQueue,
+                                      trim,
+                                      onOpenTrim,
                                       extraRightControls
                                   }: Props) => {
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -427,6 +434,9 @@ export const CustomAudioPlayer = ({
         localStorage.setItem('player-was-playing', 'true');
         onEnded?.();
     };
+
+    // Играем только выбранный отрезок трека (если задана обрезка на один раз)
+    useTrimPlayback(audioRef, trim, () => handleEndedTrack());
 
     // Название трека во вкладке браузера: «▶ Название — Исполнитель»
     const originalTitleRef = useRef<string | null>(null);
@@ -729,6 +739,7 @@ export const CustomAudioPlayer = ({
                     onSleepMinutes={sleep.startMinutes}
                     onSleepEndOfTrack={sleep.startEndOfTrack}
                     onOpenQueue={onOpenQueue}
+                    onOpenTrim={onOpenTrim}
                 />
 
                 {extraRightControls}

@@ -3,6 +3,8 @@ import mongoose from 'mongoose'
 import rateLimit from 'express-rate-limit'
 import authMiddleware from '../middleware/auth.js'
 import { uploadTrack, uploadTrackCover, uploadTrackWithCover } from '../middleware/upload.js'
+import { createTrimmedTrack } from '../controllers/trim.controller.js'
+import { createCompilation } from '../controllers/compose.controller.js'
 
 import {
     getAllTracks,
@@ -44,10 +46,13 @@ const limiter = (windowMs, limit, message) =>
         message: { message },
     })
 
+
 const searchLimiter = limiter(60 * 1000, 60, 'Слишком много поисковых запросов, подождите минуту')
 // Каждый добавленный трек запускает скачивание, поэтому лимит строже
 const addLimiter = limiter(60 * 60 * 1000, 30, 'Можно добавлять до 30 треков в час')
 const prefetchLimiter = limiter(60 * 60 * 1000, 200, 'Слишком много запросов подготовки треков')
+const trimLimiter = limiter(60 * 60 * 1000, 15, 'Можно создавать до 15 обрезков в час')
+const composeLimiter = limiter(60 * 60 * 1000, 10, 'Можно создавать до 10 сборок в час')
 
 // 1. Глобальная лента и данные для фильтров
 router.get('/', getAllTracks)
@@ -62,6 +67,9 @@ router.get('/recommended', authMiddleware, getRecommended)
 // 4. Deezer: поиск и добавление в библиотеку
 router.get('/deezer/search', authMiddleware, searchLimiter, searchDeezer)
 router.post('/deezer', authMiddleware, addLimiter, addFromDeezer)
+
+// Сборка нового трека из нескольких отрезков
+router.post('/compose', authMiddleware, composeLimiter, createCompilation)
 
 // 5. Загрузить новый трек
 router.post('/', authMiddleware, uploadTrackWithCover.fields([{ name: 'file', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), createTrack)
@@ -87,6 +95,9 @@ router.get('/:id/stream', streamTrackAudio)
 // Волна и похожие треки
 router.get('/:id/peaks', getTrackPeaks)
 router.get('/:id/similar', getSimilarTracks)
+
+// Копия трека с вырезанным отрезком
+router.post('/:id/trim', authMiddleware, trimLimiter, createTrimmedTrack)
 
 // Подготовка трека заранее: теперь только для вошедших и с лимитом
 router.post('/:id/prefetch', authMiddleware, prefetchLimiter, prefetchTrackAudio)

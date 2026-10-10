@@ -139,15 +139,9 @@ export const AddFromDeezerButton = () => {
 
     return (
         <>
-            <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white cursor-pointer
-                           bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
-                           border border-indigo-400/20 shadow-lg transition-all active:scale-[0.98]"
-            >
+            <button type="button" onClick={() => setOpen(true)} className="btn-accent">
                 <span className="text-base leading-none">＋</span>
-                <span>Из Deezer</span>
+                Из Deezer
             </button>
 
             <AddFromDeezerModal isOpen={open} onClose={() => setOpen(false)} />

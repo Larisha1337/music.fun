@@ -1,51 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap');
 @import "tailwindcss";
 
+/* Розовая палитра (брендовый цвет Anivox #F95C9E = pink-500). static: переменные есть всегда, их можно брать через var() */
+@theme static {
+    --color-pink-50: #fff0f8;
+    --color-pink-100: #ffe0f1;
+    --color-pink-200: #ffc4e4;
+    --color-pink-300: #ff9fd6;
+    --color-pink-400: #fb7cc0;
+    --color-pink-500: #f95c9e;
+    --color-pink-600: #e0407f;
+    --color-pink-700: #b82d66;
+    --color-pink-800: #8f2650;
+    --color-pink-900: #6b2040;
+    --color-pink-950: #3f0f25;
+
+    --font-sans: "Onest", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: "Unbounded", "Onest", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* МОСТ: старые классы indigo / violet / fuchsia / purple теперь рисуют розовый.
+   Чтобы вернуть прежние цвета, удали этот блок. Позже можно заменить поиском indigo- на pink- */
 @theme {
-    --animate-nav-shine: nav-shine 2.5s linear infinite;
+    --color-indigo-50: #fff0f8; --color-indigo-100: #ffe0f1; --color-indigo-200: #ffc4e4; --color-indigo-300: #ff9fd6; --color-indigo-400: #fb7cc0; --color-indigo-500: #f95c9e; --color-indigo-600: #e0407f; --color-indigo-700: #b82d66; --color-indigo-800: #8f2650; --color-indigo-900: #6b2040; --color-indigo-950: #3f0f25;
+    --color-violet-50: #fff0f8; --color-violet-100: #ffe0f1; --color-violet-200: #ffc4e4; --color-violet-300: #ff9fd6; --color-violet-400: #fb7cc0; --color-violet-500: #f95c9e; --color-violet-600: #e0407f; --color-violet-700: #b82d66; --color-violet-800: #8f2650; --color-violet-900: #6b2040; --color-violet-950: #3f0f25;
+    --color-fuchsia-50: #fff0f8; --color-fuchsia-100: #ffe0f1; --color-fuchsia-200: #ffc4e4; --color-fuchsia-300: #ff9fd6; --color-fuchsia-400: #fb7cc0; --color-fuchsia-500: #f95c9e; --color-fuchsia-600: #e0407f; --color-fuchsia-700: #b82d66; --color-fuchsia-800: #8f2650; --color-fuchsia-900: #6b2040; --color-fuchsia-950: #3f0f25;
+    --color-purple-50: #fff0f8; --color-purple-100: #ffe0f1; --color-purple-200: #ffc4e4; --color-purple-300: #ff9fd6; --color-purple-400: #fb7cc0; --color-purple-500: #f95c9e; --color-purple-600: #e0407f; --color-purple-700: #b82d66; --color-purple-800: #8f2650; --color-purple-900: #6b2040; --color-purple-950: #3f0f25;
 
-    @keyframes nav-shine {
-        to { background-position: 200% center; }
-    }
-}
-
-@layer base {
-    body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont,
-        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        background: #060707;
-        color: #9c9c9c;
-    }
-
-    a {
-        color: #9c9c9c;
-    }
-}
-
-/* Кастомный премиальный скроллбар */
-@layer utilities {
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 9999px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        transition: all 0.3s ease;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: rgba(99, 102, 241, 0.5);
-        border-color: rgba(99, 102, 241, 0.3);
-    }
-}
-
-@theme {
     --animate-nav-shine: nav-shine 2.5s linear infinite;
     --animate-modal-in: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     --animate-fade-in: fade-in 0.2s ease-out;
@@ -64,48 +45,162 @@
         to   { opacity: 1; }
     }
 }
-/* Регистрируем переменную как цвет, тогда она плавно перетекает при смене трека */
-@property --track-color {
-    syntax: '<color>';
-    inherits: true;
-    initial-value: #818cf8;
-}
 
-:root {
-    transition: --track-color 0.8s ease;
-}
-
-@keyframes avatar-pulse {
-    0%, 100% {
-        box-shadow: 0 0 14px 1px color-mix(in srgb, var(--glow) 45%, transparent);
+@layer base {
+    :root {
+        color-scheme: dark; /* нативные списки, скроллбары и поля ввода тоже тёмные */
+        accent-color: var(--color-pink-400);
     }
-    50% {
-        box-shadow: 0 0 30px 7px color-mix(in srgb, var(--glow) 80%, transparent);
+
+    body {
+        font-family: var(--font-sans);
+        background: #120e11 !important ;
+        color: #a1a1aa;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+        color: #9c9c9c;
+    }
+
+    ::selection {
+        background: rgb(249 92 158 / 0.35);
+        color: #fff;
     }
 }
 
-/* Свечение аватара. --glow это цвет трека, чуть осветлённый, чтобы тёмные обложки тоже светились */
-.avatar-glow {
-    --glow: color-mix(in srgb, var(--track-color) 75%, white);
-    box-shadow: 0 0 14px 1px color-mix(in srgb, var(--glow) 45%, transparent);
-    transition: box-shadow 0.6s ease, transform 0.3s ease;
+/* Готовые элементы в стиле Anivox */
+@layer components {
+    /* Главная кнопка: светло-розовая «пилюля» с тёмным текстом */
+    /* Главная кнопка: плотный, жирный текст вместо «скелета» */
+    .btn-accent {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 9999px;
+        background: #ff9fd6 !important;
+        color: #1d0a14 !important;
+        font-family: var(--font-sans) !important; /* Убираем тонкий Unbounded, ставим плотный Onest */
+        font-size: 0.8rem;
+        font-weight: 800 !important;             /* Максимальная жирность */
+        letter-spacing: 0.03em;                  /* Чуть сближаем буквы */
+        text-transform: uppercase;
+        white-space: nowrap;
+        cursor: pointer;
+        box-shadow: 0 8px 24px -10px rgba(255, 159, 214, 0.65);
+        transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+    }
+    .btn-accent:hover {
+        background: #ffc4e4 !important;
+        transform: translateY(-1px);
+    }
+    .btn-accent:active {
+        transform: scale(0.97);
+    }
+    .btn-accent:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+        background: #4a283b !important;
+        color: #d1a3be !important;
+    }
+
+    /* Вторичная кнопка: тёмно-серая «пилюля» */
+    .btn-soft {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.7rem 1.2rem;
+        border-radius: 9999px;
+        background: rgb(255 255 255 / 0.08);
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: background-color 0.2s, transform 0.2s;
+    }
+    .btn-soft:hover { background: rgb(255 255 255 / 0.14); }
+    .btn-soft:active { transform: scale(0.97); }
+    .btn-soft:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Чип: «8.8», «16+», «2023» на Anivox */
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 9999px;
+        background: rgb(255 255 255 / 0.08);
+        color: #e4e4e7;
+        font-family: var(--font-display);
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
 }
 
-button:hover > .avatar-glow {
-    box-shadow: 0 0 26px 4px color-mix(in srgb, var(--glow) 75%, transparent);
+/* Кастомный скроллбар */
+@layer utilities {
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 9999px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.3s ease;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(249, 92, 158, 0.55);
+        border-color: rgba(249, 92, 158, 0.3);
+    }
 }
 
-/* Пока трек играет, свечение пульсирует */
-html[data-player="playing"] .avatar-glow {
-    animation: avatar-pulse 2.4s ease-in-out infinite;
-}
+/* КЛЮЧЕВОЙ CSS ДЛЯ ТЕМЫ САКУРЫ: АНИМАЦИЯ ФОРМЫ ЛЕПЕСТКОВ */
+@layer utilities {
+    /* Основная мягкая пульсация лепестков вокруг аватара */
+    @keyframes sakura-pulse {
+        0%, 100% {
+            opacity: 0.45;
+            transform: scale(1); /* Обычный размер */
+        }
+        50% {
+            opacity: 0.75;
+            transform: scale(1.1); /* Увеличение формы лепестка на 10% */
+        }
+    }
 
-/* Когда в плеере есть трек, кольцо вокруг аватара берёт его цвет */
-html[data-player] .avatar-ring {
-    background-image: linear-gradient(
-            90deg,
-            var(--track-color),
-            color-mix(in srgb, var(--track-color) 45%, white),
-            var(--track-color)
-    );
+    /* Ускоренная пульсация, когда играет трек */
+    @keyframes sakura-pulse-fast {
+        0%, 100% {
+            opacity: 0.55;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.95;
+            transform: scale(1.18); /* Форма дышит сильнее */
+        }
+    }
+
+    /* Классы для подключения анимаций в JSX */
+    .animate-sakura-pulse {
+        animation: sakura-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .animate-sakura-pulse-fast {
+        animation: sakura-pulse-fast 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
 }

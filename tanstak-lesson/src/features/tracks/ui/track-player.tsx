@@ -87,7 +87,7 @@ export const TrackPlayer = ({ src, onEnded }: Props) => {
                 onChange={handleSeek}
                 className="flex-1 h-1.5 accent-indigo-500 cursor-pointer"
                 style={{
-                    background: `linear-gradient(to right, #6366f1 ${progress}%, #3f3f46 ${progress}%)`
+                    background: `linear-gradient(to right, #f95c9e ${progress}%, #3f3f46 ${progress}%)`
                 }}
             />
 

@@ -3,6 +3,8 @@ import { useMeQuery } from '@/hooks/useMeQuery.ts'
 import { useAudioPlayer } from '@/shared/ui/lib/audio-player-context'
 import { api } from '@/shared/api/axiosInstance.ts'
 import { useRecentTracksQuery, useRecommendedTracksQuery, type DiscoverTrack } from '../api/discover.ts'
+import type { ReactNode } from 'react'
+import { SectionTitle, IconHistory, IconSpark } from '@/shared/ui/section-title.tsx'
 
 const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
 
@@ -22,9 +24,10 @@ type CarouselProps = {
     tracks: DiscoverTrack[]
     isLoading: boolean
     showReason?: boolean
+    icon: ReactNode
 }
 
-const Carousel = ({ title, tracks, isLoading, showReason = false }: CarouselProps) => {
+const Carousel = ({ title, icon, tracks, isLoading, showReason = false }: CarouselProps) => {
     const scrollRef = useRef<HTMLDivElement>(null)
     const prefetchedRef = useRef<Set<string>>(new Set())
     const { currentTrack, playTrack } = useAudioPlayer()
@@ -48,7 +51,7 @@ const Carousel = ({ title, tracks, isLoading, showReason = false }: CarouselProp
     return (
         <section className="w-full">
             <div className="flex items-center justify-between mb-2.5 px-1">
-                <h3 className="text-sm sm:text-base font-bold text-white">{title}</h3>
+                <SectionTitle icon={icon}>{title}</SectionTitle>
                 <div className="hidden md:flex items-center gap-1.5">
                     {([-1, 1] as const).map((dir) => (
                         <button
@@ -93,7 +96,7 @@ const Carousel = ({ title, tracks, isLoading, showReason = false }: CarouselProp
                                 <div
                                     className={`relative aspect-square rounded-xl overflow-hidden bg-zinc-800 flex items-center justify-center border transition-all duration-300 ${
                                         isCurrent
-                                            ? 'border-indigo-400/60 shadow-[0_0_24px_rgba(99,102,241,0.35)]'
+                                            ? 'border-indigo-400/60 shadow-[0_0_24px_rgba(249, 92, 158,0.35)]'
                                             : 'border-white/5 group-hover:border-white/20'
                                     }`}
                                 >
@@ -146,8 +149,8 @@ export const DiscoverSections = () => {
 
     return (
         <div className="w-full flex flex-col gap-6">
-            <Carousel title="Недавно играло" tracks={recent.data ?? []} isLoading={recent.isLoading} />
-            <Carousel title="Для вас" tracks={recommended.data ?? []} isLoading={recommended.isLoading} showReason />
+            <Carousel title="Недавно играло" icon={<IconHistory />} tracks={recent.data ?? []} isLoading={recent.isLoading} />
+            <Carousel title="Для вас" icon={<IconSpark />} tracks={recommended.data ?? []} isLoading={recommended.isLoading} showReason />
         </div>
     )
 }
