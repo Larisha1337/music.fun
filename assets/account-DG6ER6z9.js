@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DUAcabCT.js";var t=e(),n=()=>(0,t.jsx)(`div`,{children:(0,t.jsx)(`h2`,{children:` Account `})});export{n as component};
