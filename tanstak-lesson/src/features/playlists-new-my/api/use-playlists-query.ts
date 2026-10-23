@@ -1,72 +1,77 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { localStorageKey } from '@/shared/config/local-storage-key.ts'
-import type {Track} from "@/features/tracks/ui/track-list.tsx";
-import {api} from "@/shared/api/axiosInstance.ts";
-
-const MY_API_BASE = import.meta.env.VITE_MY_BACKEND_URL || 'http://localhost:5000'
+import type { Track } from '@/features/tracks/ui/track-list.tsx'
+import { api } from '@/shared/api/axiosInstance.ts'
+import { toast } from '@/shared/ui/toast.tsx'
+import { apiError } from '@/shared/ui/lib/api-error.ts'
 
 export interface Playlist {
     _id: string
     name: string
     description?: string
     coverUrl?: string | null
+    isSystem?: boolean
+    createdAt?: string
+    updatedAt?: string
+    previewCovers?: string[]
     tracks?: Track[]
 }
 
-const authHeaders = () => {
-    const token = localStorage.getItem(localStorageKey.accessToken)
-    return { Authorization: `Bearer ${token}` }
+/** Элемент списка плейлистов: треки приходят только id-шниками */
+export interface PlaylistSummary extends Omit<Playlist, 'tracks'> {
+    tracks?: string[]
 }
 
-export const useMyPlaylistsQuery = () => {
-    const token = localStorage.getItem(localStorageKey.accessToken)
+const LIKED_NAME = 'Мне нравится'
 
-    return useQuery({
+export const isLikedPlaylist = (p: { isSystem?: boolean; name: string }) =>
+    Boolean(p.isSystem) || p.name === LIKED_NAME
+
+const hasToken = () => Boolean(localStorage.getItem(localStorageKey.accessToken))
+
+/* ---------- Запросы ---------- */
+
+export const useMyPlaylistsQuery = () =>
+    useQuery({
         queryKey: ['my-playlists'],
         queryFn: async () => {
-            const response = await fetch(`${MY_API_BASE}/api/playlists`, {
-                headers: authHeaders()
-            })
-            if (!response.ok) throw new Error('Не удалось загрузить плейлисты')
-            return response.json() as Promise<Playlist[]>
+            const { data } = await api.get<PlaylistSummary[]>('/playlists')
+            return data
         },
-        enabled: Boolean(token),
-        retry: false
+        enabled: hasToken(),
+        retry: false,
+        staleTime: 30_000,
     })
-}
+
+export const playlistQueryOptions = (playlistId: string) =>
+    queryOptions({
+        queryKey: ['playlist', playlistId],
+        queryFn: async () => {
+            const { data } = await api.get<Playlist>(`/playlists/${playlistId}`)
+            return data
+        },
+        staleTime: 20_000,
+    })
+
+export const usePlaylistQuery = (playlistId: string) =>
+    useQuery({
+        ...playlistQueryOptions(playlistId),
+        enabled: hasToken() && Boolean(playlistId),
+    })
+
+/* ---------- Мутации ---------- */
 
 export const useCreatePlaylistMutation = () => {
     const queryClient = useQueryClient()
 
     return useMutation({
         mutationFn: async (payload: FormData | { name: string; description?: string }) => {
-            const isFormData = payload instanceof FormData
-
-            // Формируем заголовки (для FormData НЕ добавляем Content-Type)
-            const headers: Record<string, string> = {
-                ...authHeaders()
-            }
-
-            if (!isFormData) {
-                headers['Content-Type'] = 'application/json'
-            }
-
-            const response = await fetch(`${MY_API_BASE}/api/playlists`, {
-                method: 'POST',
-                headers,
-                body: isFormData ? payload : JSON.stringify(payload)
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.message ?? 'Не удалось создать плейлист')
-            }
-
-            return response.json()
+            const { data } = await api.post<Playlist>('/playlists', payload)
+            return data
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
-        }
+        },
     })
 }
 
@@ -75,72 +80,47 @@ export const useAddTrackToPlaylistMutation = () => {
 
     return useMutation({
         mutationFn: async ({ playlistId, trackId }: { playlistId: string; trackId: string }) => {
-            const response = await fetch(`${MY_API_BASE}/api/playlists/${playlistId}/tracks`, {
-                method: 'POST',
-                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ trackId })
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.message ?? 'Не удалось добавить трек')
-            }
-            return response.json()
-        },
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['playlist', variables.playlistId] })
-            queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
-        }
-    })
-}
-
-export const usePlaylistQuery = (playlistId: string) => {
-    const token = localStorage.getItem(localStorageKey.accessToken)
-
-    return useQuery({
-        queryKey: ['playlist', playlistId],
-        queryFn: async () => {
-            const { data } = await api.get<Playlist>(`/playlists/${playlistId}`)
+            const { data } = await api.post<Playlist>(`/playlists/${playlistId}/tracks`, { trackId })
             return data
         },
-        enabled: Boolean(token) && Boolean(playlistId),
+        onSuccess: (data, variables) => {
+            queryClient.setQueryData(['playlist', variables.playlistId], data)
+            queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
+        },
     })
 }
 
-// 1. Мутация удаления трека из плейлиста
 export const useRemoveTrackFromPlaylistMutation = (playlistId: string) => {
     const queryClient = useQueryClient()
 
     return useMutation({
         mutationFn: async (trackId: string) => {
-            const { data } = await api.delete(`/playlists/${playlistId}/tracks/${trackId}`)
+            const { data } = await api.delete<Playlist>(`/playlists/${playlistId}/tracks/${trackId}`)
             return data
         },
-        onSuccess: () => {
-            // Обновляем кэш текущего плейлиста, чтобы трек сразу исчез
-            queryClient.invalidateQueries({ queryKey: ['playlist', playlistId] })
-        }
+        onSuccess: (data) => {
+            queryClient.setQueryData(['playlist', playlistId], data)
+            queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
+        },
     })
 }
 
-// 2. Мутация обновления плейлиста (с поддержкой загрузки файла обложки)
+/** Обновление плейлиста: название, описание, обложка (FormData) или новый порядок треков */
 export const useUpdatePlaylistMutation = (playlistId: string) => {
     const queryClient = useQueryClient()
 
     return useMutation({
         mutationFn: async (formData: FormData) => {
-            const { data } = await api.put(`/playlists/${playlistId}`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            })
+            const { data } = await api.put<Playlist>(`/playlists/${playlistId}`, formData)
             return data
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['playlist', playlistId] })
+        onSuccess: (data) => {
+            queryClient.setQueryData(['playlist', playlistId], data)
             queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
-        }
+        },
     })
 }
 
-// 3. Мутация удаления всего плейлиста
 export const useDeletePlaylistMutation = () => {
     const queryClient = useQueryClient()
 
@@ -149,13 +129,17 @@ export const useDeletePlaylistMutation = () => {
             const { data } = await api.delete(`/playlists/${playlistId}`)
             return data
         },
-        onSuccess: () => {
+        onSuccess: (_data, playlistId) => {
+            queryClient.removeQueries({ queryKey: ['playlist', playlistId] })
             queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
-        }
+        },
     })
 }
 
-// 💡 Хук для переключения лайка трека
+const toggleIn = (ids: string[], trackId: string) =>
+    ids.includes(trackId) ? ids.filter((id) => id !== trackId) : [...ids, trackId]
+
+/** Лайк трека: сердце меняется сразу, при ошибке возвращается назад */
 export const useToggleLikeQuery = () => {
     const queryClient = useQueryClient()
 
@@ -164,11 +148,25 @@ export const useToggleLikeQuery = () => {
             const { data } = await api.post('/playlists/liked/toggle', { trackId })
             return data
         },
-        onSuccess: () => {
-            // Обновляем список плейлистов, чтобы у "Мне нравится" обновился список треков
+        onMutate: async (trackId: string) => {
+            await queryClient.cancelQueries({ queryKey: ['my-playlists'] })
+            const previous = queryClient.getQueryData<PlaylistSummary[]>(['my-playlists'])
+
+            if (previous) {
+                queryClient.setQueryData<PlaylistSummary[]>(
+                    ['my-playlists'],
+                    previous.map((p) => (isLikedPlaylist(p) ? { ...p, tracks: toggleIn(p.tracks ?? [], trackId) } : p))
+                )
+            }
+            return { previous }
+        },
+        onError: (error, _trackId, context) => {
+            if (context?.previous) queryClient.setQueryData(['my-playlists'], context.previous)
+            toast.error(apiError(error, 'Не удалось изменить лайк'))
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['my-playlists'] })
-            // Также инвалидируем общие данные плейлистов на случай, если открыт конкретный
             queryClient.invalidateQueries({ queryKey: ['playlist'] })
-        }
+        },
     })
 }

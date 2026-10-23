@@ -1,5 +1,16 @@
 import { useState } from 'react'
-import { useMyPlaylistsQuery, useAddTrackToPlaylistMutation } from '../api/use-playlists-query'
+import { Modal } from '@/shared/ui/modal/remove-modal.tsx'
+import { toast } from '@/shared/ui/toast.tsx'
+import { apiError } from '@/shared/ui/lib/api-error.ts'
+import { PlaylistCover } from './playlist-cover.tsx'
+import {
+    isLikedPlaylist,
+    useAddTrackToPlaylistMutation,
+    useCreatePlaylistMutation,
+    useMyPlaylistsQuery,
+    type PlaylistSummary,
+} from '../api/use-playlists-query.ts'
+import { pluralTracks } from '../lib/format.ts'
 
 type Props = {
     trackId: string
@@ -9,61 +20,129 @@ type Props = {
 
 export const AddToPlaylistModal = ({ trackId, isOpen, onClose }: Props) => {
     const { data: playlists = [], isLoading } = useMyPlaylistsQuery()
-    const { mutate: addTrack, isPending } = useAddTrackToPlaylistMutation()
-    const [addedId, setAddedId] = useState<string | null>(null)
+    const { mutate: addTrack } = useAddTrackToPlaylistMutation()
+    const { mutateAsync: createPlaylist, isPending: isCreating } = useCreatePlaylistMutation()
 
-    if (!isOpen) return null
+    const [busyId, setBusyId] = useState<string | null>(null)
+    const [newName, setNewName] = useState('')
+    const [filter, setFilter] = useState('')
 
-    const handleAdd = (playlistId: string) => {
+    const contains = (p: PlaylistSummary) => (p.tracks ?? []).some((id) => String(id) === trackId)
+
+    const add = (id: string, name: string) => {
+        setBusyId(id)
         addTrack(
-            { playlistId, trackId },
+            { playlistId: id, trackId },
             {
                 onSuccess: () => {
-                    setAddedId(playlistId)
-                    setTimeout(() => {
-                        setAddedId(null)
-                        onClose()
-                    }, 1000)
-                }
+                    toast.success(`Добавлено в «${name}»`)
+                    onClose()
+                },
+                onError: (err) => toast.error(apiError(err, 'Не удалось добавить трек')),
+                onSettled: () => setBusyId(null),
             }
         )
     }
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-            <div className="relative w-full max-w-sm bg-[#18181b] border border-[#27272a] rounded-3xl p-6 shadow-2xl text-zinc-100">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-zinc-400 hover:text-white font-bold cursor-pointer"
-                >
-                    ✕
-                </button>
+    const createAndAdd = async (e: React.FormEvent) => {
+        e.preventDefault()
+        const name = newName.trim()
+        if (!name || isCreating) return
 
-                <h3 className="text-lg font-bold mb-4">Добавить в плейлист</h3>
+        try {
+            const fd = new FormData()
+            fd.append('name', name)
+            const playlist = await createPlaylist(fd)
+            setNewName('')
+            add(playlist._id, playlist.name)
+        } catch (err) {
+            toast.error(apiError(err, 'Не удалось создать плейлист'))
+        }
+    }
+
+    const q = filter.trim().toLowerCase()
+    const shown = q ? playlists.filter((p) => p.name.toLowerCase().includes(q)) : playlists
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Добавить в плейлист" maxWidth="max-w-md">
+            <div className="flex flex-col gap-4">
+                <form onSubmit={createAndAdd} className="flex items-center gap-2">
+                    <input
+                        type="text"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        placeholder="Новый плейлист..."
+                        maxLength={100}
+                        disabled={isCreating}
+                        aria-label="Название нового плейлиста"
+                        className="input-soft min-w-0 flex-1"
+                    />
+                    <button type="submit" disabled={isCreating || !newName.trim()} className="btn-accent shrink-0">
+                        {isCreating ? '...' : 'Создать'}
+                    </button>
+                </form>
+
+                {playlists.length > 6 && (
+                    <input
+                        type="search"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        placeholder="Найти плейлист"
+                        aria-label="Найти плейлист"
+                        className="input-soft"
+                    />
+                )}
 
                 {isLoading ? (
-                    <p className="text-xs text-zinc-500 py-4 text-center">Загрузка плейлистов...</p>
-                ) : playlists.length === 0 ? (
-                    <p className="text-xs text-zinc-500 py-4 text-center">У вас пока нет плейлистов</p>
+                    <p className="py-6 text-center text-sm text-zinc-400">Загрузка плейлистов...</p>
+                ) : shown.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-zinc-500">
+                        {playlists.length === 0 ? 'Создайте первый плейлист выше' : 'Ничего не найдено'}
+                    </p>
                 ) : (
-                    <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
-                        {playlists.map((pl) => (
-                            <button
-                                key={pl._id}
-                                disabled={isPending}
-                                onClick={() => handleAdd(pl._id)}
-                                className="flex items-center justify-between w-full p-3 bg-[#27272a]/40 hover:bg-[#27272a] border border-[#27272a] rounded-xl text-left transition-all cursor-pointer disabled:opacity-50"
-                            >
-                                <span className="font-medium text-sm truncate">{pl.name}</span>
-                                {addedId === pl._id && (
-                                    <span className="text-emerald-400 text-xs font-bold">Добавлено ✓</span>
-                                )}
-                            </button>
-                        ))}
+                    <div className="custom-scrollbar flex max-h-[45vh] flex-col gap-1.5 overflow-y-auto pr-1">
+                        {shown.map((p) => {
+                            const has = contains(p)
+
+                            return (
+                                <button
+                                    key={p._id}
+                                    type="button"
+                                    disabled={has || busyId !== null}
+                                    onClick={() => add(p._id, p.name)}
+                                    className="track-card flex w-full cursor-pointer items-center gap-3 rounded-xl p-2.5 text-left disabled:cursor-default"
+                                >
+                                    <PlaylistCover
+                                        coverUrl={p.coverUrl}
+                                        previewCovers={p.previewCovers}
+                                        isSystem={isLikedPlaylist(p)}
+                                        className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-pink-200/15"
+                                    />
+
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold text-white">{p.name}</span>
+                                        <span className="block truncate text-xs text-zinc-400">{pluralTracks(p.tracks?.length ?? 0)}</span>
+                                    </span>
+
+                                    {busyId === p._id ? (
+                                        <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-pink-300" />
+                                    ) : has ? (
+                                        <span className="shrink-0 rounded-full bg-pink-300/15 px-2.5 py-1 text-[11px] font-bold text-pink-200">
+                                            ✓ Уже тут
+                                        </span>
+                                    ) : (
+                                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-pink-200">
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                                            </svg>
+                                        </span>
+                                    )}
+                                </button>
+                            )
+                        })}
                     </div>
                 )}
             </div>
-        </div>
+        </Modal>
     )
 }

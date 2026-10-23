@@ -22,39 +22,28 @@ export const ConfirmModal = ({
                                  cancelText = "Отмена",
                                  isLoading = false,
                                  isDanger = true
-                             }: ConfirmModalProps) => {
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title}>
-            <div className="flex flex-col items-center justify-center gap-4 w-full">
-                {/* Текст описания строго по центру */}
-                <p className="text-sm text-zinc-300 leading-relaxed text-center max-w-sm">
-                    {description}
-                </p>
+                             }: ConfirmModalProps) => (
+    <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-sm">
+        <div className="flex w-full flex-col items-center gap-5">
+            <p className="max-w-sm text-center text-sm leading-relaxed text-zinc-300">{description}</p>
 
-                {/* Равномерно отцентрированные кнопки одинаковой ширины */}
-                <div className="flex items-center justify-center gap-3 w-full mt-2">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isLoading}
-                        className="flex-1 py-2.5 px-4 text-xs font-semibold text-zinc-300 bg-[#27272a] hover:bg-[#3f3f46] border border-[#3f3f46] rounded-xl transition-colors cursor-pointer text-center"
-                    >
-                        {cancelText}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={onConfirm}
-                        disabled={isLoading}
-                        className={`flex-1 py-2.5 px-4 text-xs font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-md disabled:opacity-50 text-center ${
-                            isDanger
-                                ? "bg-red-600 hover:bg-red-500"
-                                : "bg-indigo-600 hover:bg-indigo-500"
-                        }`}
-                    >
-                        {isLoading ? "Обработка..." : confirmText}
-                    </button>
-                </div>
+            <div className="flex w-full items-center gap-3">
+                <button type="button" onClick={onClose} disabled={isLoading} className="btn-soft flex-1">
+                    {cancelText}
+                </button>
+                <button
+                    type="button"
+                    onClick={onConfirm}
+                    disabled={isLoading}
+                    className={
+                        isDanger
+                            ? "inline-flex flex-1 cursor-pointer items-center justify-center rounded-full bg-rose-500 px-5 py-3 text-xs font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                            : "btn-accent flex-1"
+                    }
+                >
+                    {isLoading ? "Обработка..." : confirmText}
+                </button>
             </div>
-        </Modal>
-    );
-};
+        </div>
+    </Modal>
+);

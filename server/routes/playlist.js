@@ -22,14 +22,36 @@ router.param('id', (req, res, next, id) => {
     next()
 })
 
-// 1. Получить МОИ плейлисты (для сайдбара)
+// 1. Получить МОИ плейлисты (с превью обложек для коллажа)
 router.get('/', async (req, res) => {
     try {
         const playlists = await Playlist.find(
             { ownerId: req.userId },
-            'name coverUrl tracks isSystem'
-        ).sort({ createdAt: -1 })
-        res.status(200).json(playlists)
+            'name description coverUrl tracks isSystem createdAt updatedAt'
+        )
+            .sort({ isSystem: -1, updatedAt: -1 })
+            .lean()
+
+        // Берём по 8 первых треков: у части из них нет обложки, из оставшихся соберём до 4 картинок
+        const candidateIds = [...new Set(playlists.flatMap((p) => (p.tracks || []).slice(0, 8).map(String)))]
+        const withCovers = candidateIds.length
+            ? await Track.find({ _id: { $in: candidateIds }, coverUrl: { $nin: [null, ''] } })
+                .select('coverUrl')
+                .lean()
+            : []
+        const coverById = new Map(withCovers.map((t) => [String(t._id), t.coverUrl]))
+
+        res.status(200).json(
+            playlists.map((p) => {
+                const previewCovers = []
+                for (const id of (p.tracks || []).slice(0, 8)) {
+                    const cover = coverById.get(String(id))
+                    if (cover && !previewCovers.includes(cover)) previewCovers.push(cover)
+                    if (previewCovers.length === 4) break
+                }
+                return { ...p, previewCovers }
+            })
+        )
     } catch (error) {
         console.error(error)
         res.status(500).json({ message: 'Ошибка получения плейлистов' })

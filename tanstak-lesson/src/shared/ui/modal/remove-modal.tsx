@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalProps {
     isOpen: boolean;
@@ -16,52 +17,68 @@ export const Modal = ({
                           maxWidth = "max-w-xl"
                       }: ModalProps) => {
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
+        if (!isOpen) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") onClose();
         };
-        if (isOpen) {
-            window.addEventListener("keydown", handleKeyDown);
-            document.body.style.overflow = "hidden";
-        }
+        window.addEventListener("keydown", onKeyDown);
+
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
         return () => {
-            window.removeEventListener("keydown", handleKeyDown);
-            document.body.style.overflow = "unset";
+            window.removeEventListener("keydown", onKeyDown);
+            document.body.style.overflow = prevOverflow;
         };
     }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-            {/* Оверлей */}
-            <div className="fixed inset-0" onClick={onClose} />
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[10005] overflow-y-auto overscroll-contain"
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+        >
+            <div className="fixed inset-0 bg-black/75 backdrop-blur-md animate-fade-in" />
 
-            {/* Модальное окно с фиксацией переполнения */}
             <div
-                className={`relative w-full ${maxWidth} bg-[#18181b] border border-[#27272a] rounded-2xl p-6 shadow-2xl z-10 flex flex-col gap-4 text-zinc-100 overflow-hidden box-border`}
+                className="relative flex min-h-full items-center justify-center p-3 sm:p-4"
+                onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) onClose();
+                }}
             >
-                {/* Кнопка закрытия */}
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors cursor-pointer z-20"
-                    title="Закрыть"
+                <div
+                    className={`animate-modal-in relative flex w-full ${maxWidth} flex-col gap-4 overflow-hidden rounded-3xl border border-pink-200/10 bg-zinc-950/95 p-5 text-zinc-100 shadow-[0_30px_80px_-20px_rgba(249,92,158,0.35)] sm:p-6`}
                 >
-                    ✕
-                </button>
+                    {/* Розовое свечение сверху */}
+                    <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute -top-24 left-1/2 h-48 w-80 -translate-x-1/2 rounded-full bg-pink-400/20 blur-3xl"
+                    />
 
-                {/* Заголовок */}
-                {title && (
-                    <h2 className="text-xl font-bold text-white text-center w-full px-8">
-                        {title}
-                    </h2>
-                )}
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="absolute right-3 top-3 z-20 grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-white/[0.07] text-zinc-400 transition-colors hover:bg-white/15 hover:text-white sm:right-4 sm:top-4"
+                        title="Закрыть"
+                        aria-label="Закрыть"
+                    >
+                        ✕
+                    </button>
 
-                {/* Контент */}
-                <div className="w-full flex flex-col min-w-0">
-                    {children}
+                    {title && (
+                        <h2 className="relative w-full px-9 text-center font-display text-sm font-extrabold uppercase tracking-wide text-white sm:text-base">
+                            {title}
+                        </h2>
+                    )}
+
+                    <div className="relative flex w-full min-w-0 flex-col">{children}</div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
